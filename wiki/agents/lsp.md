@@ -29,9 +29,9 @@ host supplies a connection.
 | `hoverProvider`          | **done** | markdown field/symbol/type/enum   |
 | `definitionProvider`     | **done** | cross-file + into sysroot headers |
 | `signatureHelpProvider`  | **done** | trigger `(` `,`; active param     |
+| `documentSymbolProvider` | **done** | top-level outline + ranges        |
 | `referencesProvider`     | TODO     |                                   |
 | `renameProvider`         | TODO     |                                   |
-| `documentSymbolProvider` | TODO     |                                   |
 | `semanticTokensProvider` | TODO     |                                   |
 
 When you add a capability: advertise it in `onInitialize`, add the handler, map

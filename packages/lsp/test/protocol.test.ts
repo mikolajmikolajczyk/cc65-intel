@@ -295,6 +295,45 @@ describe('@cc65-intel/lsp protocol', () => {
     client.dispose()
   })
 
+  it('serves document symbols (file outline) over LSP', async () => {
+    const text = 'struct Foo { int x; };\nint score;\nvoid run(void) {\n  int local;\n}'
+    const c2s = new PassThrough()
+    const s2c = new PassThrough()
+    startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+    const client = createMessageConnection(
+      new StreamMessageReader(s2c),
+      new StreamMessageWriter(c2s),
+    )
+    client.listen()
+    const uri = 'file:///active.c'
+    await client.sendRequest('initialize', {
+      processId: null,
+      rootUri: null,
+      capabilities: {},
+      initializationOptions: {},
+    })
+    await client.sendNotification('initialized', {})
+    await client.sendNotification('textDocument/didOpen', {
+      textDocument: { uri, languageId: 'c', version: 1, text },
+    })
+    interface DocSym {
+      name: string
+      kind: number
+      range: { start: Position; end: Position }
+      selectionRange: { start: Position; end: Position }
+    }
+    const res = await client.sendRequest<DocSym[]>('textDocument/documentSymbol', {
+      textDocument: { uri },
+    })
+    expect(res.map((s) => s.name)).toEqual(['Foo', 'score', 'run'])
+    const foo = res.find((s) => s.name === 'Foo')!
+    expect(foo.kind).toBe(23) // SymbolKind.Struct
+    expect(foo.selectionRange.start).toEqual({ line: 0, character: 7 })
+    // no `local` leaking from the function body
+    expect(res.some((s) => s.name === 'local')).toBe(false)
+    client.dispose()
+  })
+
   it('serves signature help with the active parameter over LSP', async () => {
     const text = 'int add(int a, int b);\nvoid main(void) {\n  add(1, )\n}'
     // cursor right after the comma (line 2, char 9): `  add(1, |)`

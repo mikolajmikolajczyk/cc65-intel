@@ -16,6 +16,8 @@ export type {
   CDiagnostic,
   CDiagnosticSeverity,
   CSignatureHelp,
+  CDocSymbolKind,
+  CDocumentSymbol,
 } from './types.js'
 
 export { parseC } from './parse.js'
@@ -25,3 +27,4 @@ export { hoverAt } from './hover.js'
 export { definitionAt } from './definition.js'
 export { parseBuildOutput } from './diagnostics.js'
 export { signatureHelpAt } from './signature.js'
+export { documentSymbols } from './outline.js'

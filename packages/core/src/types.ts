@@ -90,6 +90,20 @@ export interface CSignatureHelp {
   activeParameter: number
 }
 
+export type CDocSymbolKind = 'function' | 'struct' | 'union' | 'enum' | 'typedef' | 'variable'
+
+/** A top-level declaration for a file outline. Offsets, never line/column —
+ *  `start`/`end` span the whole declaration, `selectionStart`/`selectionEnd`
+ *  the name identifier (what an editor highlights on reveal). */
+export interface CDocumentSymbol {
+  name: string
+  kind: CDocSymbolKind
+  start: number
+  end: number
+  selectionStart: number
+  selectionEnd: number
+}
+
 export type CDiagnosticSeverity = 'error' | 'warning' | 'note'
 
 /** One parsed cc65/ca65/ld65 diagnostic. `line`/`column` are 1-based, exactly

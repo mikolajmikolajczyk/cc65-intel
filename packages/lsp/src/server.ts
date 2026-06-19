@@ -5,6 +5,7 @@ import {
   CompletionItemKind,
   DiagnosticSeverity,
   MarkupKind,
+  SymbolKind,
   TextDocuments,
   TextDocumentSyncKind,
 } from 'vscode-languageserver'
@@ -12,12 +13,14 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
   completeAt,
   definitionAt,
+  documentSymbols,
   hoverAt,
   indexC,
   parseBuildOutput,
   signatureHelpAt,
   type CDiagnostic,
   type CDiagnosticSeverity,
+  type CDocSymbolKind,
   type CIndex,
   type CSymbolKind,
   type SourceFile,
@@ -54,6 +57,15 @@ const SEVERITY: Record<CDiagnosticSeverity, DiagnosticSeverity> = {
   error: DiagnosticSeverity.Error,
   warning: DiagnosticSeverity.Warning,
   note: DiagnosticSeverity.Information,
+}
+
+const SYMBOL_KIND: Record<CDocSymbolKind, SymbolKind> = {
+  function: SymbolKind.Function,
+  struct: SymbolKind.Struct,
+  union: SymbolKind.Struct, // LSP has no Union kind
+  enum: SymbolKind.Enum,
+  typedef: SymbolKind.Class,
+  variable: SymbolKind.Variable,
 }
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -101,6 +113,7 @@ export function startServer(connection: Connection): void {
         hoverProvider: true,
         definitionProvider: true,
         signatureHelpProvider: { triggerCharacters: ['(', ','] },
+        documentSymbolProvider: true,
       },
     }
   })
@@ -142,6 +155,20 @@ export function startServer(connection: Connection): void {
       activeSignature: 0,
       activeParameter: help.activeParameter,
     }
+  })
+
+  connection.onDocumentSymbol((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return []
+    return documentSymbols(doc.getText()).map((s) => ({
+      name: s.name,
+      kind: SYMBOL_KIND[s.kind],
+      range: { start: doc.positionAt(s.start), end: doc.positionAt(s.end) },
+      selectionRange: {
+        start: doc.positionAt(s.selectionStart),
+        end: doc.positionAt(s.selectionEnd),
+      },
+    }))
   })
 
   connection.onHover((params) => {
