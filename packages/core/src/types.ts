@@ -79,6 +79,23 @@ export interface HoverInfo {
   contents: string
 }
 
+export type CDiagnosticSeverity = 'error' | 'warning' | 'note'
+
+/** One parsed cc65/ca65/ld65 diagnostic. `line`/`column` are 1-based, exactly
+ *  as the toolchain emits them — the LSP/editor converts to a 0-based Range.
+ *  (Unlike the rest of the engine, which speaks offsets, this is parsed external
+ *  tool output, so it carries the tool's own line/column.) */
+export interface CDiagnostic {
+  /** File path as the toolchain printed it (host maps it to a document URI). */
+  file: string
+  /** 1-based line. */
+  line: number
+  /** 1-based column; 1 when the tool omits it. */
+  column: number
+  severity: CDiagnosticSeverity
+  message: string
+}
+
 export interface IndexOptions {
   /** cc65 sysroot headers (e.g. `<_vic2.h>`) so register structs (VIC/SID/CIA)
    *  resolve. Indexed read-only alongside the project files. */

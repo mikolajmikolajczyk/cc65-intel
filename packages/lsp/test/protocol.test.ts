@@ -133,6 +133,53 @@ async function definition(
   return { result, client }
 }
 
+interface PublishParams {
+  uri: string
+  diagnostics: {
+    range: { start: Position; end: Position }
+    severity?: number
+    source?: string
+    message: string
+  }[]
+}
+
+// Opens docs, pushes raw cc65 build output via the custom `cc65/buildOutput`
+// notification, and collects every `textDocument/publishDiagnostics` the server
+// emits in response (resolved once `settle` ms pass with no further publish).
+async function pushBuildOutput(
+  docs: { uri: string; text: string }[],
+  output: string,
+): Promise<{ published: PublishParams[]; client: MessageConnection }> {
+  const c2s = new PassThrough()
+  const s2c = new PassThrough()
+  startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+  const client = createMessageConnection(new StreamMessageReader(s2c), new StreamMessageWriter(c2s))
+  client.listen()
+
+  const published: PublishParams[] = []
+  client.onNotification('textDocument/publishDiagnostics', (p: PublishParams) => {
+    published.push(p)
+  })
+
+  await client.sendRequest('initialize', {
+    processId: null,
+    rootUri: null,
+    capabilities: {},
+    initializationOptions: {},
+  })
+  await client.sendNotification('initialized', {})
+  for (const d of docs) {
+    await client.sendNotification('textDocument/didOpen', {
+      textDocument: { uri: d.uri, languageId: 'c', version: 1, text: d.text },
+    })
+  }
+
+  await client.sendNotification('cc65/buildOutput', { output })
+  // Let the server process the notification and flush publishDiagnostics.
+  await new Promise((r) => setTimeout(r, 50))
+  return { published, client }
+}
+
 // Validates the client↔server contract (method names + param/response shapes)
 // end to end.
 describe('@cc65-intel/lsp protocol', () => {
@@ -209,6 +256,57 @@ describe('@cc65-intel/lsp protocol', () => {
     const loc = Array.isArray(result) ? result[0] : result
     expect(loc?.uri).toBe('include/conio.h')
     expect(loc?.range.start).toEqual({ line: 0, character: 5 })
+    client.dispose()
+  })
+
+  it('publishes diagnostics from pushed cc65 build output', async () => {
+    const main = { uri: 'file:///proj/main.c', text: 'void main(void) {\n  undefined_fn();\n}' }
+    const { published, client } = await pushBuildOutput(
+      [main],
+      'main.c:2:3: error: call to undefined function `undefined_fn`',
+    )
+    const forMain = published.find((p) => p.uri === main.uri)
+    expect(forMain).toBeDefined()
+    expect(forMain!.diagnostics).toHaveLength(1)
+    const d = forMain!.diagnostics[0]!
+    expect(d.severity).toBe(1) // DiagnosticSeverity.Error
+    expect(d.source).toBe('cc65')
+    expect(d.message).toContain('undefined_fn')
+    expect(d.range.start).toEqual({ line: 1, character: 2 })
+    client.dispose()
+  })
+
+  it('clears diagnostics when a later build no longer reports the file', async () => {
+    const main = { uri: 'file:///proj/main.c', text: 'void main(void) {}' }
+    const c2s = new PassThrough()
+    const s2c = new PassThrough()
+    startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+    const client = createMessageConnection(
+      new StreamMessageReader(s2c),
+      new StreamMessageWriter(c2s),
+    )
+    client.listen()
+    const published: PublishParams[] = []
+    client.onNotification('textDocument/publishDiagnostics', (p: PublishParams) => {
+      published.push(p)
+    })
+    await client.sendRequest('initialize', {
+      processId: null,
+      rootUri: null,
+      capabilities: {},
+      initializationOptions: {},
+    })
+    await client.sendNotification('initialized', {})
+    await client.sendNotification('textDocument/didOpen', {
+      textDocument: { uri: main.uri, languageId: 'c', version: 1, text: main.text },
+    })
+    await client.sendNotification('cc65/buildOutput', {
+      output: 'main.c:1:1: error: boom',
+    })
+    await client.sendNotification('cc65/buildOutput', { output: '' })
+    await new Promise((r) => setTimeout(r, 50))
+    const last = published.filter((p) => p.uri === main.uri).at(-1)
+    expect(last?.diagnostics).toEqual([])
     client.dispose()
   })
 })

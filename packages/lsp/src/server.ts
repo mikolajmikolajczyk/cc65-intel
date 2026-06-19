@@ -1,7 +1,9 @@
 import {
   type Connection,
+  type Diagnostic,
   type InitializeResult,
   CompletionItemKind,
+  DiagnosticSeverity,
   MarkupKind,
   TextDocuments,
   TextDocumentSyncKind,
@@ -12,6 +14,9 @@ import {
   definitionAt,
   hoverAt,
   indexC,
+  parseBuildOutput,
+  type CDiagnostic,
+  type CDiagnosticSeverity,
   type CIndex,
   type CSymbolKind,
   type SourceFile,
@@ -33,6 +38,21 @@ interface InitOptions {
   /** cc65 sysroot headers (e.g. <_vic2.h>) the host mounts, so register structs
    *  resolve. Sent once at initialize. */
   sysrootHeaders?: SourceFile[]
+}
+
+/** Custom notification: the host pushes raw cc65/ca65/ld65 build output, the
+ *  server parses it and publishes standard `textDocument/publishDiagnostics`.
+ *  Host-agnostic (any editor with a build step uses it) — the browser worker
+ *  has no compiler, so it pushes; a node host could also run cc65 itself. */
+const BUILD_OUTPUT = 'cc65/buildOutput'
+interface BuildOutputParams {
+  output: string
+}
+
+const SEVERITY: Record<CDiagnosticSeverity, DiagnosticSeverity> = {
+  error: DiagnosticSeverity.Error,
+  warning: DiagnosticSeverity.Warning,
+  note: DiagnosticSeverity.Information,
 }
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -133,6 +153,53 @@ export function startServer(connection: Connection): void {
       uri: loc.uri,
       range: { start: td.positionAt(loc.start), end: td.positionAt(loc.end) },
     }
+  })
+
+  // Match a toolchain-printed path to an open document's URI by suffix
+  // (`main.c` ↔ `file:///proj/main.c`). Unmatched files fall back to a `file://`
+  // URI so non-open files (headers pulled into the build) still get squiggles.
+  const resolveUri = (file: string): string => {
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(file)) return file
+    const norm = file.replace(/\\/g, '/')
+    const open = documents
+      .all()
+      .find((d) => d.uri === norm || decodeURIComponent(d.uri).endsWith('/' + norm))
+    return open ? open.uri : 'file://' + (norm.startsWith('/') ? norm : '/' + norm)
+  }
+
+  // A parsed diagnostic's 1-based line/col → a 0-based Range. When the target
+  // document is open, extend the range to the end of the line so the squiggle is
+  // visible; otherwise mark a zero-width point at the reported column.
+  const toDiagnostic = (d: CDiagnostic, uri: string): Diagnostic => {
+    const start = { line: Math.max(0, d.line - 1), character: Math.max(0, d.column - 1) }
+    const lineText = documents.get(uri)?.getText().split(/\r?\n/)[start.line]
+    const end =
+      lineText !== undefined ? { line: start.line, character: lineText.length } : { ...start }
+    return {
+      range: { start, end },
+      severity: SEVERITY[d.severity],
+      source: 'cc65',
+      message: d.message,
+    }
+  }
+
+  // URIs we last published diagnostics to, so a fresh build that no longer
+  // mentions a file clears its stale squiggles.
+  let publishedUris = new Set<string>()
+
+  connection.onNotification(BUILD_OUTPUT, (params: BuildOutputParams) => {
+    const byUri = new Map<string, Diagnostic[]>()
+    for (const d of parseBuildOutput(params.output)) {
+      const uri = resolveUri(d.file)
+      const list = byUri.get(uri) ?? []
+      list.push(toDiagnostic(d, uri))
+      byUri.set(uri, list)
+    }
+    for (const [uri, diagnostics] of byUri) void connection.sendDiagnostics({ uri, diagnostics })
+    for (const uri of publishedUris) {
+      if (!byUri.has(uri)) void connection.sendDiagnostics({ uri, diagnostics: [] })
+    }
+    publishedUris = new Set(byUri.keys())
   })
 
   documents.listen(connection)

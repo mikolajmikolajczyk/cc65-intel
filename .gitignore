@@ -4,3 +4,6 @@ dist/
 .DS_Store
 coverage/
 .direnv/
+
+# repoctx local index
+.repoctx/

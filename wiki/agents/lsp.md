@@ -18,9 +18,9 @@ host supplies a connection.
 | ------------------------ | -------- | --------------------------------- |
 | `textDocumentSync`       | **Full** | host sends whole buffer on change |
 | `completionProvider`     | **done** | trigger chars `.` and `>`         |
-| `hoverProvider`          | TODO     | issue: hover                      |
+| `hoverProvider`          | **done** | markdown field/symbol/type/enum   |
+| `definitionProvider`     | **done** | cross-file + into sysroot headers |
 | `signatureHelpProvider`  | TODO     | trigger `(` `,`                   |
-| `definitionProvider`     | TODO     |                                   |
 | `referencesProvider`     | TODO     |                                   |
 | `renameProvider`         | TODO     |                                   |
 | `documentSymbolProvider` | TODO     |                                   |
@@ -28,6 +28,22 @@ host supplies a connection.
 
 When you add a capability: advertise it in `onInitialize`, add the handler, map
 engine output → LSP types, and write a [protocol-roundtrip test](testing.md).
+
+### Diagnostics (push model)
+
+The browser worker has no compiler, so diagnostics flow the other way: the host
+pushes raw build output, the server parses + republishes it as standard LSP.
+
+- **Inbound** — custom notification `cc65/buildOutput`, param `{ output: string }`:
+  the host sends raw cc65/ca65/ld65 stderr (gcc-style `file:line:col: error: msg`
+  and cc65-native `file(line): Error: msg` are both understood).
+- **Parsing** — pure `parseBuildOutput` lives in `@cc65-intel/core`, so any host
+  reuses it without the LSP.
+- **Outbound** — the server maps each diagnostic's toolchain path to an open
+  document's URI (suffix match; else a `file://` fallback) and emits standard
+  `textDocument/publishDiagnostics`, clearing files a later build no longer
+  mentions. `cc65/buildOutput` is the one inbound custom notification; everything
+  the server emits is standard LSP, so non-madside hosts work unchanged.
 
 ## Server responsibilities
 

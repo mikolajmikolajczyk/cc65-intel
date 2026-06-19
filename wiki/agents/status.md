@@ -2,7 +2,7 @@
 
 Snapshot of what works. Update when behaviour changes.
 
-## Shipped (0.2.x, on npm)
+## Shipped (0.4.x, on npm)
 
 - **Engine** (`@cc65-intel/core`):
   - parse via `@lezer/cpp`; type table (struct/union/typedef/**enum** → fields,
@@ -17,8 +17,14 @@ Snapshot of what works. Update when behaviour changes.
   - `hoverAt`: field / symbol / type / enum info as markdown.
 - **LSP** (`@cc65-intel/lsp`):
   - `startServer` + browser worker entry; `completionProvider` (trigger `.`/`>`)
-    with auto-`#include` `additionalTextEdits`; `hoverProvider`; Full document
+    with auto-`#include` `additionalTextEdits`; `hoverProvider`;
+    `definitionProvider` (cross-file + into sysroot headers); Full document
     sync; `sysrootHeaders` indexed from init options (stdlib + registers).
+  - **Diagnostics** (#6): the host pushes raw cc65/ca65/ld65 build output via the
+    `cc65/buildOutput` notification (`{ output: string }`); the server parses it
+    (pure `parseBuildOutput` in core) and emits standard
+    `textDocument/publishDiagnostics`, clearing files a later build no longer
+    reports. Browser-friendly (no compiler in the worker).
 - **Consumed by madside** in its C editor behind `VITE_MADSIDE_CC65_LSP=1`.
   Parity (stdlib completion + auto-include + hover) is shipped engine-side; the
   default-on flip is wired on the madside side (madside #63).
@@ -43,8 +49,8 @@ Documented misses (lezer/dialect limits, tracked for later):
 
 ## Not yet (open issues)
 
-- **Awesome extras**: signature help, diagnostics, go-to-definition / references
-  / rename / document symbols, semantic tokens.
+- **Awesome extras**: signature help, references / rename / document symbols,
+  semantic tokens.
 - **Transports**: node stdio; VS Code extension.
 - **Quality**: completion-quality harness (#4).
 
