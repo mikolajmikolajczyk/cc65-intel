@@ -2,9 +2,11 @@ import {
   type Connection,
   type Diagnostic,
   type InitializeResult,
+  type SemanticTokensLegend,
   CompletionItemKind,
   DiagnosticSeverity,
   MarkupKind,
+  SemanticTokensBuilder,
   SymbolKind,
   TextDocuments,
   TextDocumentSyncKind,
@@ -17,7 +19,10 @@ import {
   hoverAt,
   indexC,
   parseBuildOutput,
+  prepareRenameAt,
   referencesAt,
+  renameAt,
+  semanticTokens,
   signatureHelpAt,
   type CDiagnostic,
   type CDiagnosticSeverity,
@@ -25,6 +30,7 @@ import {
   type CIndex,
   type CLocation,
   type CSymbolKind,
+  type CTokenType,
   type SourceFile,
 } from '@cc65-intel/core'
 
@@ -68,6 +74,22 @@ const SYMBOL_KIND: Record<CDocSymbolKind, SymbolKind> = {
   enum: SymbolKind.Enum,
   typedef: SymbolKind.Class,
   variable: SymbolKind.Variable,
+}
+
+// Semantic-token legend: standard LSP token-type names (cc65 `field` maps to the
+// standard `property`). The token-type number a client receives is the index
+// into `tokenTypes`.
+const SEMANTIC_LEGEND: SemanticTokensLegend = {
+  tokenTypes: ['type', 'function', 'macro', 'parameter', 'property', 'variable'],
+  tokenModifiers: [],
+}
+const TOKEN_INDEX: Record<CTokenType, number> = {
+  type: 0,
+  function: 1,
+  macro: 2,
+  parameter: 3,
+  field: 4, // → property
+  variable: 5,
 }
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -131,6 +153,8 @@ export function startServer(connection: Connection): void {
         signatureHelpProvider: { triggerCharacters: ['(', ','] },
         documentSymbolProvider: true,
         referencesProvider: true,
+        renameProvider: { prepareProvider: true },
+        semanticTokensProvider: { legend: SEMANTIC_LEGEND, full: true },
       },
     }
   })
@@ -188,6 +212,38 @@ export function startServer(connection: Connection): void {
       }
     }
     return refs.map(toLocation).filter((l): l is NonNullable<typeof l> => l !== null)
+  })
+
+  connection.languages.semanticTokens.on((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return { data: [] }
+    const builder = new SemanticTokensBuilder()
+    for (const t of semanticTokens(index, doc.getText())) {
+      const pos = doc.positionAt(t.start)
+      builder.push(pos.line, pos.character, t.end - t.start, TOKEN_INDEX[t.type], 0)
+    }
+    return builder.build()
+  })
+
+  connection.onPrepareRename((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return null
+    const r = prepareRenameAt(doc.getText(), doc.offsetAt(params.position))
+    return r ? rangeOf(doc, r.start, r.end) : null
+  })
+
+  connection.onRenameRequest((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return null
+    const edits = renameAt(allFiles(), doc.getText(), doc.offsetAt(params.position), params.newName)
+    if (edits.length === 0) return null
+    const changes: Record<string, { range: ReturnType<typeof rangeOf>; newText: string }[]> = {}
+    for (const e of edits) {
+      const target = documents.get(e.uri)
+      if (!target) continue
+      ;(changes[e.uri] ??= []).push({ range: rangeOf(target, e.start, e.end), newText: e.newText })
+    }
+    return { changes }
   })
 
   connection.onDocumentSymbol((params) => {

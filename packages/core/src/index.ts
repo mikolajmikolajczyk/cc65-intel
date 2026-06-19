@@ -18,6 +18,9 @@ export type {
   CSignatureHelp,
   CDocSymbolKind,
   CDocumentSymbol,
+  CRenameEdit,
+  CTokenType,
+  CSemanticToken,
 } from './types.js'
 
 export { parseC } from './parse.js'
@@ -29,3 +32,5 @@ export { parseBuildOutput } from './diagnostics.js'
 export { signatureHelpAt } from './signature.js'
 export { documentSymbols } from './outline.js'
 export { findReferences, referencesAt } from './references.js'
+export { renameAt, prepareRenameAt } from './rename.js'
+export { semanticTokens } from './tokens.js'

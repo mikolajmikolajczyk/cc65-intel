@@ -336,6 +336,82 @@ describe('@cc65-intel/lsp protocol', () => {
     client.dispose()
   })
 
+  it('serves semantic tokens over LSP', async () => {
+    const text = 'struct Point { int x; };\nvoid move(int dx) { dx++; }'
+    const c2s = new PassThrough()
+    const s2c = new PassThrough()
+    startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+    const client = createMessageConnection(
+      new StreamMessageReader(s2c),
+      new StreamMessageWriter(c2s),
+    )
+    client.listen()
+    const uri = 'file:///active.c'
+    await client.sendRequest('initialize', {
+      processId: null,
+      rootUri: null,
+      capabilities: {},
+      initializationOptions: {},
+    })
+    await client.sendNotification('initialized', {})
+    await client.sendNotification('textDocument/didOpen', {
+      textDocument: { uri, languageId: 'c', version: 1, text },
+    })
+    const res = await client.sendRequest<{ data: number[] }>('textDocument/semanticTokens/full', {
+      textDocument: { uri },
+    })
+    // data is 5-tuples: deltaLine, deltaChar, length, tokenType, tokenModifiers
+    expect(res.data.length % 5).toBe(0)
+    const tokenTypes = new Set<number>()
+    for (let i = 0; i < res.data.length; i += 5) tokenTypes.add(res.data[i + 3]!)
+    // legend: 0 type, 1 function, 3 parameter
+    expect(tokenTypes.has(0)).toBe(true) // Point (type)
+    expect(tokenTypes.has(1)).toBe(true) // move (function)
+    expect(tokenTypes.has(3)).toBe(true) // dx (parameter)
+    client.dispose()
+  })
+
+  it('serves rename as a cross-file WorkspaceEdit over LSP', async () => {
+    const lib = { uri: 'file:///lib.c', text: 'int counter;\nvoid bump(void){counter++;}' }
+    const main = {
+      uri: 'file:///main.c',
+      text: 'extern int counter;\nint get(void){return counter;}',
+    }
+    const c2s = new PassThrough()
+    const s2c = new PassThrough()
+    startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+    const client = createMessageConnection(
+      new StreamMessageReader(s2c),
+      new StreamMessageWriter(c2s),
+    )
+    client.listen()
+    await client.sendRequest('initialize', {
+      processId: null,
+      rootUri: null,
+      capabilities: {},
+      initializationOptions: {},
+    })
+    await client.sendNotification('initialized', {})
+    for (const d of [lib, main]) {
+      await client.sendNotification('textDocument/didOpen', {
+        textDocument: { uri: d.uri, languageId: 'c', version: 1, text: d.text },
+      })
+    }
+    interface WorkspaceEdit {
+      changes: Record<string, { range: { start: Position; end: Position }; newText: string }[]>
+    }
+    const res = await client.sendRequest<WorkspaceEdit>('textDocument/rename', {
+      textDocument: { uri: lib.uri },
+      position: { line: 0, character: 5 },
+      newName: 'total',
+    })
+    expect(Object.keys(res.changes).sort()).toEqual(['file:///lib.c', 'file:///main.c'])
+    expect(res.changes['file:///lib.c']).toHaveLength(2)
+    expect(res.changes['file:///main.c']).toHaveLength(2)
+    expect(res.changes['file:///lib.c']!.every((e) => e.newText === 'total')).toBe(true)
+    client.dispose()
+  })
+
   it('serves document symbols (file outline) over LSP', async () => {
     const text = 'struct Foo { int x; };\nint score;\nvoid run(void) {\n  int local;\n}'
     const c2s = new PassThrough()

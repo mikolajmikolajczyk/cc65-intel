@@ -90,6 +90,24 @@ export interface CSignatureHelp {
   activeParameter: number
 }
 
+export type CTokenType = 'type' | 'function' | 'macro' | 'parameter' | 'field' | 'variable'
+
+/** A semantic-highlight token: an offset range tagged with the resolved role of
+ *  the identifier (richer than lexer-based highlighting). */
+export interface CSemanticToken {
+  start: number
+  end: number
+  type: CTokenType
+}
+
+/** One text replacement for a rename: a file + offset range → the new name. */
+export interface CRenameEdit {
+  uri: string
+  start: number
+  end: number
+  newText: string
+}
+
 export type CDocSymbolKind = 'function' | 'struct' | 'union' | 'enum' | 'typedef' | 'variable'
 
 /** A top-level declaration for a file outline. Offsets, never line/column —

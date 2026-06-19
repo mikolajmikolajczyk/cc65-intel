@@ -22,17 +22,17 @@ host supplies a connection.
 
 ## Capabilities (advertised in `onInitialize`)
 
-| Capability               | Status   | Notes                             |
-| ------------------------ | -------- | --------------------------------- |
-| `textDocumentSync`       | **Full** | host sends whole buffer on change |
-| `completionProvider`     | **done** | trigger chars `.` and `>`         |
-| `hoverProvider`          | **done** | markdown field/symbol/type/enum   |
-| `definitionProvider`     | **done** | cross-file + into sysroot headers |
-| `signatureHelpProvider`  | **done** | trigger `(` `,`; active param     |
-| `documentSymbolProvider` | **done** | top-level outline + ranges        |
-| `referencesProvider`     | **done** | name-based, across open docs      |
-| `renameProvider`         | TODO     |                                   |
-| `semanticTokensProvider` | TODO     |                                   |
+| Capability               | Status   | Notes                               |
+| ------------------------ | -------- | ----------------------------------- |
+| `textDocumentSync`       | **Full** | host sends whole buffer on change   |
+| `completionProvider`     | **done** | trigger chars `.` and `>`           |
+| `hoverProvider`          | **done** | markdown field/symbol/type/enum     |
+| `definitionProvider`     | **done** | cross-file + into sysroot headers   |
+| `signatureHelpProvider`  | **done** | trigger `(` `,`; active param       |
+| `documentSymbolProvider` | **done** | top-level outline + ranges          |
+| `referencesProvider`     | **done** | name-based, across open docs        |
+| `renameProvider`         | **done** | prepare + cross-file WorkspaceEdit  |
+| `semanticTokensProvider` | **done** | full; type/fn/macro/param/field/var |
 
 When you add a capability: advertise it in `onInitialize`, add the handler, map
 engine output → LSP types, and write a [protocol-roundtrip test](testing.md).
