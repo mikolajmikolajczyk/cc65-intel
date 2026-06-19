@@ -1,6 +1,6 @@
 {
   "name": "@cc65-intel/lsp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Thin LSP server over @cc65-intel/core — cc65 C completion, hover, diagnostics. Browser (worker) + node (stdio).",
   "license": "MIT",
   "type": "module",
