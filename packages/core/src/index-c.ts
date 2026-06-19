@@ -1,25 +1,16 @@
 import type { SyntaxNode } from '@lezer/common'
-import type { CField, CIndex, CType, IndexOptions, SourceFile } from './types'
+import type { CField, CIndex, CSymbol, CType, IndexOptions, SourceFile } from './types'
 import { parseC } from './parse'
+import { declTypeName, declaredName, deepChild, slice, walk } from './ast'
 
-// Build a project index from source files by walking each file's Lezer tree.
-// Step 1 extracts the type table (struct / union / typedef → fields, with each
-// field's own type for nested resolution). Top-level symbols + the var→type
-// table that drives member completion land alongside completeAt (next step).
-// cc65 sysroot headers are indexed read-only so register structs resolve.
+// Build a project index from source files by walking each file's Lezer tree:
+// the type table (struct / union / typedef → fields) and the top-level symbol
+// table (functions / macros / globals). cc65 sysroot headers are indexed
+// read-only so register structs resolve. The var→type resolution that drives
+// member completion is done per-request in completeAt (from the live buffer, so
+// locals + unsaved edits resolve), not stored here.
 
 const basename = (path: string): string => path.split('/').pop() ?? path
-
-function deepChild(node: SyntaxNode, name: string): SyntaxNode | null {
-  for (let ch = node.firstChild; ch; ch = ch.nextSibling) {
-    if (ch.name === name) return ch
-    const found = deepChild(ch, name)
-    if (found) return found
-  }
-  return null
-}
-
-const slice = (text: string, n: SyntaxNode): string => text.slice(n.from, n.to)
 
 /** A FieldDeclaration's type, as written: the type specifier text plus a `*`
  *  per pointer level. Used both as the completion detail and to resolve nested
@@ -45,13 +36,6 @@ function fieldsOf(list: SyntaxNode, text: string): CField[] {
     out.push({ name: slice(text, id), type: fieldType(decl, text) })
   }
   return out
-}
-
-function walk(node: SyntaxNode, fn: (n: SyntaxNode) => void): void {
-  for (let ch = node.firstChild; ch; ch = ch.nextSibling) {
-    fn(ch)
-    walk(ch, fn)
-  }
 }
 
 function collectTypes(text: string, file: string, into: Map<string, CType>): void {
@@ -90,9 +74,57 @@ function collectTypes(text: string, file: string, into: Map<string, CType>): voi
   })
 }
 
+/** The function name from a `FunctionDeclarator`. */
+function fnName(declarator: SyntaxNode, text: string): string | null {
+  const id = declarator.getChild('Identifier')
+  return id ? slice(text, id) : null
+}
+
+function collectSymbols(text: string, file: string, into: Map<string, CSymbol>): void {
+  const root = parseC(text).topNode
+  const add = (s: CSymbol): void => {
+    if (!into.has(s.label)) into.set(s.label, s)
+  }
+
+  // `#define NAME` anywhere.
+  walk(root, (n) => {
+    if (n.name !== 'PreprocDirective') return
+    if (!n.getChild('#define')) return
+    const id = n.getChild('Identifier')
+    if (id) add({ label: slice(text, id), kind: 'macro', file })
+  })
+
+  // Top-level functions + globals (direct children of the program root only, so
+  // locals inside function bodies don't leak into identifier completion).
+  for (let n = root.firstChild; n; n = n.nextSibling) {
+    if (n.name === 'FunctionDefinition') {
+      const decl = n.getChild('FunctionDeclarator')
+      const name = decl ? fnName(decl, text) : null
+      if (name) add({ label: name, kind: 'function', file })
+      continue
+    }
+    if (n.name !== 'Declaration') continue
+    const fnDecl = n.getChild('FunctionDeclarator')
+    if (fnDecl) {
+      const name = fnName(fnDecl, text)
+      if (name) add({ label: name, kind: 'function', file })
+      continue
+    }
+    const name = declaredName(n, text)
+    if (name) {
+      const type = declTypeName(n, text)
+      add({ label: name, kind: 'global', file, ...(type ? { type } : {}) })
+    }
+  }
+}
+
 export function indexC(files: SourceFile[], opts: IndexOptions = {}): CIndex {
   const index: CIndex = { types: new Map(), symbols: new Map() }
   const all = [...(opts.sysrootHeaders ?? []), ...files]
-  for (const f of all) collectTypes(f.text, basename(f.path), index.types)
+  for (const f of all) {
+    const file = basename(f.path)
+    collectTypes(f.text, file, index.types)
+    collectSymbols(f.text, file, index.symbols)
+  }
   return index
 }
