@@ -2,12 +2,14 @@ import {
   type Connection,
   type InitializeResult,
   CompletionItemKind,
+  MarkupKind,
   TextDocuments,
   TextDocumentSyncKind,
 } from 'vscode-languageserver'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
   completeAt,
+  hoverAt,
   indexC,
   type CIndex,
   type CSymbolKind,
@@ -74,6 +76,7 @@ export function startServer(connection: Connection): void {
         // sends the whole buffer on each change.
         textDocumentSync: TextDocumentSyncKind.Full,
         completionProvider: { triggerCharacters: ['.', '>'] },
+        hoverProvider: true,
       },
     }
   })
@@ -103,6 +106,14 @@ export function startServer(connection: Connection): void {
           : {}),
       }
     })
+  })
+
+  connection.onHover((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return null
+    const info = hoverAt(index, doc.getText(), doc.offsetAt(params.position))
+    if (!info) return null
+    return { contents: { kind: MarkupKind.Markdown, value: info.contents } }
   })
 
   documents.listen(connection)

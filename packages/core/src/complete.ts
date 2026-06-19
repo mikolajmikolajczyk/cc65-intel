@@ -1,6 +1,5 @@
 import type { CIndex, CompletionItem } from './types'
-import { parseC } from './parse'
-import { declTypeName, declaredName, walk } from './ast'
+import { resolveVarType } from './ast'
 
 // Answer a completion request at `offset` in `text`, given a built `index`.
 //   - after `.` / `->`  → resolve the left-hand variable's type, list its fields
@@ -18,23 +17,6 @@ const IDENT_RE = /([A-Za-z_]\w*)$/
 
 const startsWith = (label: string, prefix: string): boolean =>
   label.toLowerCase().startsWith(prefix.toLowerCase())
-
-/** The type name of the nearest declaration of `name` before `offset`, or null.
- *  Scans every declaration/parameter in the buffer (so locals + params resolve);
- *  the nearest preceding one wins. */
-function resolveVarType(text: string, name: string, offset: number): string | null {
-  const root = parseC(text).topNode
-  const candidates: { pos: number; type: string }[] = []
-  walk(root, (n) => {
-    if (n.name !== 'Declaration' && n.name !== 'ParameterDeclaration') return
-    if (n.from >= offset) return
-    if (declaredName(n, text) !== name) return
-    const type = declTypeName(n, text)
-    if (type) candidates.push({ pos: n.from, type })
-  })
-  candidates.sort((a, b) => b.pos - a.pos) // nearest declaration before the cursor wins
-  return candidates[0]?.type ?? null
-}
 
 function memberCompletions(index: CIndex, type: string, prefix: string): CompletionItem[] {
   const t = index.types.get(type)

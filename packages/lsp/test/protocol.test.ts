@@ -58,6 +58,41 @@ async function complete(
   return { items: Array.isArray(res) ? res : (res?.items ?? []), client }
 }
 
+interface Hover {
+  contents: { kind: string; value: string }
+}
+
+// Opens a document and runs a hover request at `position`.
+async function hover(
+  text: string,
+  position: Position,
+  initializationOptions: unknown = {},
+): Promise<{ result: Hover | null; client: MessageConnection }> {
+  const c2s = new PassThrough()
+  const s2c = new PassThrough()
+  startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+  const client = createMessageConnection(new StreamMessageReader(s2c), new StreamMessageWriter(c2s))
+  client.listen()
+
+  const uri = 'file:///active.c'
+  await client.sendRequest('initialize', {
+    processId: null,
+    rootUri: null,
+    capabilities: {},
+    initializationOptions,
+  })
+  await client.sendNotification('initialized', {})
+  await client.sendNotification('textDocument/didOpen', {
+    textDocument: { uri, languageId: 'c', version: 1, text },
+  })
+
+  const result = await client.sendRequest<Hover | null>('textDocument/hover', {
+    textDocument: { uri },
+    position,
+  })
+  return { result, client }
+}
+
 const CONIO = { sysrootHeaders: [{ path: 'include/conio.h', text: 'void cputs(const char* s);' }] }
 
 // Validates the client↔server contract (method names + param/response shapes)
@@ -98,6 +133,23 @@ describe('@cc65-intel/lsp protocol', () => {
     const cputs = items.find((i) => i.label === 'cputs')
     expect(cputs).toBeDefined()
     expect(cputs?.additionalTextEdits).toBeUndefined()
+    client.dispose()
+  })
+
+  it('serves hover with markdown contents over LSP', async () => {
+    const text = 'int add(int a, int b);\nvoid main(void) {\n  add(1, 2);\n}'
+    const { result, client } = await hover(text, { line: 2, character: 3 })
+    expect(result).not.toBeNull()
+    expect(result!.contents.kind).toBe('markdown')
+    expect(result!.contents.value).toContain('int add(int a, int b)')
+    expect(result!.contents.value).toContain('*function*')
+    client.dispose()
+  })
+
+  it('returns null hover on a miss', async () => {
+    const text = 'int main(void) { return 0; }'
+    const { result, client } = await hover(text, { line: 0, character: 22 })
+    expect(result).toBeNull()
     client.dispose()
   })
 })

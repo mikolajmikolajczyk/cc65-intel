@@ -1,8 +1,45 @@
 import type { SyntaxNode } from '@lezer/common'
+import { parseC } from './parse'
 
-// Shared Lezer-tree helpers used by the indexer and the completer.
+// Shared Lezer-tree helpers used by the indexer, the completer, and hover.
 
 export const slice = (text: string, n: SyntaxNode): string => text.slice(n.from, n.to)
+
+const WORD_CHAR = /\w/
+
+/** The identifier word spanning `offset` (expanding both ways over `\w`), or
+ *  null if the offset isn't inside an identifier. Words starting with a digit
+ *  (numeric literals) are rejected. */
+export function wordAt(
+  text: string,
+  offset: number,
+): { word: string; from: number; to: number } | null {
+  let from = offset
+  while (from > 0 && WORD_CHAR.test(text[from - 1] ?? '')) from--
+  let to = offset
+  while (to < text.length && WORD_CHAR.test(text[to] ?? '')) to++
+  if (from === to) return null
+  const word = text.slice(from, to)
+  if (!/^[A-Za-z_]/.test(word)) return null
+  return { word, from, to }
+}
+
+/** The type name of the nearest declaration of `name` before `offset`, or null.
+ *  Scans every declaration/parameter in the buffer (so locals + params resolve);
+ *  the nearest preceding one wins. Shared by completion + hover. */
+export function resolveVarType(text: string, name: string, offset: number): string | null {
+  const root = parseC(text).topNode
+  const candidates: { pos: number; type: string }[] = []
+  walk(root, (n) => {
+    if (n.name !== 'Declaration' && n.name !== 'ParameterDeclaration') return
+    if (n.from >= offset) return
+    if (declaredName(n, text) !== name) return
+    const type = declTypeName(n, text)
+    if (type) candidates.push({ pos: n.from, type })
+  })
+  candidates.sort((a, b) => b.pos - a.pos) // nearest declaration before the cursor wins
+  return candidates[0]?.type ?? null
+}
 
 /** Depth-first search for the first descendant of the given node type. */
 export function deepChild(node: SyntaxNode, name: string): SyntaxNode | null {
