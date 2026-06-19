@@ -54,6 +54,72 @@ void f(void) { r.al| }`
   })
 })
 
+describe('completeAt — accuracy (#11)', () => {
+  it('resolves a nested member chain a.b.c', () => {
+    const src = `struct C { int leaf; };
+struct B { struct C c; };
+struct A { struct B b; };
+struct A a;
+void f(void) { a.b.c.| }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    expect(labels(completeAt(idx, text, offset))).toEqual(['leaf'])
+  })
+
+  it('resolves a typedef-of-pointer (typedef struct S *SP; sp->)', () => {
+    const src = `struct S { int x; int y; };
+typedef struct S *SP;
+void f(SP sp) { sp->| }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    expect(labels(completeAt(idx, text, offset))).toEqual(['x', 'y'])
+  })
+
+  it('resolves a plain typedef alias (typedef struct S T; T t; t.)', () => {
+    const src = `struct S { int a; int b; };
+typedef struct S T;
+void f(void) { T t; t.| }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    expect(labels(completeAt(idx, text, offset))).toEqual(['a', 'b'])
+  })
+
+  it('resolves array element member access (arr[0].)', () => {
+    const src = `struct Foo { int hp; int mp; };
+struct Foo arr[4];
+void f(void) { arr[0].| }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    expect(labels(completeAt(idx, text, offset))).toEqual(['hp', 'mp'])
+  })
+
+  it('resolves a const-qualified pointer field chain', () => {
+    const src = `struct Inner { int v; };
+struct Outer { const struct Inner *in; };
+const struct Outer *o;
+void f(void) { o->in->| }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    expect(labels(completeAt(idx, text, offset))).toEqual(['v'])
+  })
+
+  it('resolves a var from a multi-declarator declaration (struct Foo a, b;)', () => {
+    const src = `struct Foo { int x; };
+void f(void) { struct Foo a, b; b.| }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    expect(labels(completeAt(idx, text, offset))).toEqual(['x'])
+  })
+
+  it('completes enum constants as identifiers', () => {
+    const src = `enum Color { RED, GREEN, BLUE };
+void f(void) { GR| }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    expect(labels(completeAt(idx, text, offset))).toEqual(['GREEN'])
+  })
+})
+
 describe('completeAt — identifier completion', () => {
   it('completes functions / macros / globals / types by prefix', () => {
     const fixture = `#define MAXVAL 1

@@ -1,7 +1,7 @@
 import type { SyntaxNode } from '@lezer/common'
 import type { CField, CIndex, CSymbol, CType, IndexOptions, SourceFile } from './types'
 import { parseC, stripDecorators } from './parse'
-import { declTypeName, declaredName, deepChild, slice, walk } from './ast'
+import { declTypeName, declaredNames, deepChild, slice, walk } from './ast'
 
 // Build a project index from source files by walking each file's Lezer tree:
 // the type table (struct / union / typedef → fields) and the top-level symbol
@@ -42,7 +42,24 @@ function fieldsOf(list: SyntaxNode, text: string): CField[] {
   return out
 }
 
-function collectTypes(text: string, file: string, into: Map<string, CType>): void {
+/** Enumerators of an `enum X { … }`, each carried as a field whose "type" is the
+ *  enum name (so hover can name the enum). */
+function enumeratorsOf(list: SyntaxNode, text: string, enumName: string): CField[] {
+  const out: CField[] = []
+  for (let e = list.firstChild; e; e = e.nextSibling) {
+    if (e.name !== 'Enumerator') continue
+    const id = e.getChild('Identifier')
+    if (id) out.push({ name: slice(text, id), type: `enum ${enumName}` })
+  }
+  return out
+}
+
+function collectTypes(
+  text: string,
+  file: string,
+  into: Map<string, CType>,
+  aliasInto: Map<string, string>,
+): void {
   const root = parseC(text).topNode
   walk(root, (n) => {
     // Named definition: `struct Foo { … }` / `union U { … }`.
@@ -62,17 +79,49 @@ function collectTypes(text: string, file: string, into: Map<string, CType>): voi
       }
       return
     }
-    // `typedef struct { … } Bar;` — the alias is the trailing TypeIdentifier
-    // directly under the TypeDefinition (the inner tag, if any, is handled above).
+    // `enum Color { RED, GREEN };` — the type, keyed by tag.
+    if (n.name === 'EnumSpecifier') {
+      const list = n.getChild('EnumeratorList')
+      const tag = n.getChild('TypeIdentifier')
+      if (list && tag) {
+        const name = slice(text, tag)
+        if (!into.has(name)) {
+          into.set(name, { name, kind: 'enum', fields: enumeratorsOf(list, text, name), file })
+        }
+      }
+      return
+    }
     if (n.name === 'TypeDefinition') {
+      // `typedef struct { … } Bar;` — inline definition, alias carries the fields.
       const list = deepChild(n, 'FieldDeclarationList')
       const ids = n.getChildren('TypeIdentifier')
-      const alias = ids[ids.length - 1]
-      if (list && alias) {
-        const name = slice(text, alias)
-        if (!into.has(name)) {
-          into.set(name, { name, kind: 'typedef', fields: fieldsOf(list, text), file })
+      if (list) {
+        const alias = ids[ids.length - 1]
+        if (alias) {
+          const name = slice(text, alias)
+          if (!into.has(name)) {
+            into.set(name, { name, kind: 'typedef', fields: fieldsOf(list, text), file })
+          }
         }
+        return
+      }
+      // Non-inline alias: `typedef struct S *SP;` / `typedef struct S SP;` /
+      // `typedef Foo Bar;` — record `alias → underlying` so member resolution
+      // can follow it to the real struct.
+      const spec = n.getChild('StructSpecifier') ?? n.getChild('UnionSpecifier')
+      const directIds = ids.map((id) => slice(text, id))
+      const specTag = spec?.getChild('TypeIdentifier')
+      const underlying = specTag ? slice(text, specTag) : directIds[0]
+      const ptr = n.getChild('PointerDeclarator')
+      let alias: string | undefined
+      if (ptr) {
+        const a = deepChild(ptr, 'TypeIdentifier') ?? deepChild(ptr, 'Identifier')
+        alias = a ? slice(text, a) : undefined
+      } else {
+        alias = spec ? directIds[directIds.length - 1] : directIds[1]
+      }
+      if (alias && underlying && alias !== underlying && !aliasInto.has(alias)) {
+        aliasInto.set(alias, underlying)
       }
     }
   })
@@ -126,6 +175,29 @@ function collectSymbols(
     else add({ label, kind: 'macro', file, ...hdr })
   })
 
+  // Enum constants — completable identifiers (rendered as constants), tagged
+  // with their enum for hover provenance.
+  walk(root, (n) => {
+    if (n.name !== 'EnumSpecifier') return
+    const list = n.getChild('EnumeratorList')
+    const tag = n.getChild('TypeIdentifier')
+    if (!list) return
+    const enumName = tag ? slice(text, tag) : ''
+    for (let e = list.firstChild; e; e = e.nextSibling) {
+      if (e.name !== 'Enumerator') continue
+      const id = e.getChild('Identifier')
+      if (id) {
+        add({
+          label: slice(text, id),
+          kind: 'macro',
+          file,
+          ...(enumName ? { detail: `enum ${enumName}` } : {}),
+          ...hdr,
+        })
+      }
+    }
+  })
+
   // Top-level functions + globals (direct children of the program root only, so
   // locals inside function bodies don't leak into identifier completion).
   for (let n = root.firstChild; n; n = n.nextSibling) {
@@ -142,26 +214,26 @@ function collectSymbols(
       if (name) add({ label: name, kind: 'function', file, detail: signatureOf(n, text), ...hdr })
       continue
     }
-    const name = declaredName(n, text)
-    if (name) {
-      const type = declTypeName(n, text)
+    // Every declarator of the declaration (`struct Foo a, b;` → a and b).
+    const type = declTypeName(n, text)
+    for (const name of declaredNames(n, text)) {
       add({ label: name, kind: 'global', file, ...(type ? { type } : {}), ...hdr })
     }
   }
 }
 
 export function indexC(files: SourceFile[], opts: IndexOptions = {}): CIndex {
-  const index: CIndex = { types: new Map(), symbols: new Map() }
+  const index: CIndex = { types: new Map(), symbols: new Map(), aliases: new Map() }
   // Sysroot headers carry their basename as the declaring header (drives editor
   // auto-`#include`); project `.c`/`.h` symbols don't get one.
   for (const f of opts.sysrootHeaders ?? []) {
     const file = basename(f.path)
-    collectTypes(f.text, file, index.types)
+    collectTypes(f.text, file, index.types, index.aliases)
     collectSymbols(f.text, file, index.symbols, file)
   }
   for (const f of files) {
     const file = basename(f.path)
-    collectTypes(f.text, file, index.types)
+    collectTypes(f.text, file, index.types, index.aliases)
     collectSymbols(f.text, file, index.symbols)
   }
   return index

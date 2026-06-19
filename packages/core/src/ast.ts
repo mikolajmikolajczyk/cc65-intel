@@ -33,7 +33,7 @@ export function resolveVarType(text: string, name: string, offset: number): stri
   walk(root, (n) => {
     if (n.name !== 'Declaration' && n.name !== 'ParameterDeclaration') return
     if (n.from >= offset) return
-    if (declaredName(n, text) !== name) return
+    if (!declaredNames(n, text).includes(name)) return
     const type = declTypeName(n, text)
     if (type) candidates.push({ pos: n.from, type })
   })
@@ -71,12 +71,27 @@ export function declTypeName(decl: SyntaxNode, text: string): string {
   return id ? slice(text, id) : ''
 }
 
+// A declarator wrapping the declared identifier: pointer / array / init.
+const DECLARATOR = new Set(['PointerDeclarator', 'ArrayDeclarator', 'InitDeclarator'])
+
+/** Every name declared by a `Declaration`, in source order — covers multiple
+ *  declarators (`int a, b, c;`) and pointer/array/init forms (`Foo *p, arr[4]`).
+ *  Function declarators are excluded (handled separately). */
+export function declaredNames(decl: SyntaxNode, text: string): string[] {
+  const out: string[] = []
+  for (let ch = decl.firstChild; ch; ch = ch.nextSibling) {
+    if (ch.name === 'Identifier') out.push(slice(text, ch))
+    else if (DECLARATOR.has(ch.name)) {
+      const id = deepChild(ch, 'Identifier')
+      if (id) out.push(slice(text, id))
+    }
+  }
+  return out
+}
+
 /** The declared name of a non-function declarator (`Identifier`, possibly under a
- *  `PointerDeclarator`). Returns null for function declarators / anonymous decls. */
+ *  pointer/array/init declarator). Returns null for function declarators /
+ *  anonymous decls. */
 export function declaredName(decl: SyntaxNode, text: string): string | null {
-  const direct = decl.getChild('Identifier')
-  if (direct) return slice(text, direct)
-  const ptr = decl.getChild('PointerDeclarator')
-  const id = ptr ? deepChild(ptr, 'Identifier') : null
-  return id ? slice(text, id) : null
+  return declaredNames(decl, text)[0] ?? null
 }

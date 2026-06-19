@@ -40,11 +40,15 @@ export interface CSymbol {
   file: string
 }
 
-/** Built index for a project: types-by-name + top-level symbols. Rebuilt
- *  per-file cheaply (cc65 projects are small), so a `didChange` reindex is fine. */
+/** Built index for a project: types-by-name + top-level symbols + typedef
+ *  aliases (`typedef struct S *SP` → `SP`→`S`). Rebuilt per-file cheaply (cc65
+ *  projects are small), so a `didChange` reindex is fine. */
 export interface CIndex {
   types: Map<string, CType>
   symbols: Map<string, CSymbol>
+  /** Typedef alias → the underlying type name it resolves to (followed
+   *  transitively during member resolution). */
+  aliases: Map<string, string>
 }
 
 export interface CompletionItem {

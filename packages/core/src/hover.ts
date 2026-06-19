@@ -1,13 +1,17 @@
 import type { CIndex, CSymbol, CType, HoverInfo } from './types'
-import { resolveVarType, wordAt } from './ast'
+import { wordAt } from './ast'
+import { resolveChainType } from './resolve'
 
 // Hover info for the symbol/field/type under `offset`. Mirrors completion's
-// member/identifier split: a `lhs.word` / `lhs->word` access resolves the field;
-// a bare word resolves a symbol (function/macro/global) or a type. Returns
-// markdown contents, or null when nothing resolves (a miss, never a throw).
+// member/identifier split: a `lhs.word` / `lhs->word` access resolves the field
+// (over a full chain — `a.b.c`, `arr[0].x`); a bare word resolves a symbol
+// (function/macro/global) or a type. Returns markdown contents, or null when
+// nothing resolves (a miss, never a throw).
 
-// `<lhs> . ` or `<lhs> -> ` immediately before the hovered word.
-const MEMBER_BEFORE = /([A-Za-z_]\w*)\s*(?:\.|->)\s*$/
+// A member-access expression ending just before the hovered word: a base
+// identifier, an accessor chain, and the trailing `.`/`->` operator.
+const MEMBER_BEFORE =
+  /([A-Za-z_]\w*)((?:\s*(?:\.|->)\s*[A-Za-z_]\w*|\s*\[[^\]]*\])*)\s*(?:\.|->)\s*$/
 
 const codeBlock = (code: string): string => '```c\n' + code + '\n```'
 
@@ -28,12 +32,13 @@ export function hoverAt(index: CIndex, text: string, offset: number): HoverInfo 
   const word = wordAt(text, offset)
   if (!word) return null
 
-  // Field access: resolve the LHS var's type, then the field by name.
+  // Field access: resolve the LHS expression's type, then the field by name.
   const member = MEMBER_BEFORE.exec(text.slice(0, word.from))
   if (member) {
-    const lhs = member[1] ?? ''
-    const type = resolveVarType(text, lhs, word.from) ?? index.symbols.get(lhs)?.type ?? null
-    const field = type ? index.types.get(type)?.fields.find((f) => f.name === word.word) : undefined
+    const base = member[1] ?? ''
+    const chain = member[2] ?? ''
+    const type = resolveChainType(index, text, base, chain, word.from)
+    const field = type?.fields.find((f) => f.name === word.word)
     return field ? { contents: fieldHover(field.name, field.type) } : null
   }
 

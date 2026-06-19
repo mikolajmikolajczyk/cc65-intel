@@ -70,6 +70,34 @@ describe('hoverAt', () => {
     expect(h!.contents).toContain('*field*')
   })
 
+  it('hovers a field through a nested chain (a.b.c)', () => {
+    const src = `struct C { int leaf; };
+struct B { struct C c; };
+struct A { struct B b; };
+struct A a;
+void f(void) { a.b.c.le|af; }`
+    const { text, offset } = at(src)
+    const idx = indexC([{ path: 'main.c', text }])
+    const h = hoverAt(idx, text, offset)
+    expect(h!.contents).toContain('int leaf')
+    expect(h!.contents).toContain('*field*')
+  })
+
+  it('hovers an enum type name', () => {
+    const { text, offset } = at('enum Color { RED, GREEN };\nenum Col|or c;')
+    const idx = indexC([{ path: 'main.c', text }])
+    const h = hoverAt(idx, text, offset)
+    expect(h!.contents).toContain('enum Color')
+    expect(h!.contents).toContain('*type*')
+  })
+
+  it('hovers an enum constant', () => {
+    const { text, offset } = at('enum Color { RED, GREEN };\nint x = RE|D;')
+    const idx = indexC([{ path: 'main.c', text }])
+    const h = hoverAt(idx, text, offset)
+    expect(h!.contents).toContain('enum Color')
+  })
+
   it('returns null on a miss (unknown word / whitespace)', () => {
     const { text, offset } = at('int x = 1; // no|pe')
     const idx = indexC([{ path: 'main.c', text }])
