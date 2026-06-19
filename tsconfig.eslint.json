@@ -5,7 +5,13 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "lib": ["ES2022", "WebWorker"]
+    "lib": ["ES2022", "WebWorker"],
+    // Resolve workspace packages to their source for type-aware linting, so lint
+    // doesn't require a prior build (dist/) to type-check cross-package imports.
+    "paths": {
+      "@cc65-intel/core": ["./packages/core/src/index.ts"],
+      "@cc65-intel/lsp": ["./packages/lsp/src/index.ts"]
+    }
   },
   "include": ["packages/*/src", "packages/*/test"]
 }
