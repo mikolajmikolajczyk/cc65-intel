@@ -1,3 +1,8 @@
+## [0.2.1] - 2026-06-19
+
+### 🐛 Bug Fixes
+
+- *(core)* Index cc65 functions decorated with __fastcall__ / __cdecl__
 ## [0.2.0] - 2026-06-19
 
 ### 🚀 Features

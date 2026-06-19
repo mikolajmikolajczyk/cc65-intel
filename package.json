@@ -1,6 +1,6 @@
 {
   "name": "cc65-intel-workspace",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "cc65-dialect C intelligence: a parser+resolver engine and LSP for the cc65 6502 C toolchain.",
   "license": "MIT",
