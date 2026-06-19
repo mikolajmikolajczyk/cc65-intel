@@ -49,7 +49,9 @@ export function startServer(connection: Connection): void {
     if (opts?.sysrootHeaders) sysrootHeaders = opts.sysrootHeaders
     return {
       capabilities: {
-        textDocumentSync: TextDocumentSyncKind.Incremental,
+        // Full document sync — small cc65 files, simplest client. The host
+        // sends the whole buffer on each change.
+        textDocumentSync: TextDocumentSyncKind.Full,
         completionProvider: { triggerCharacters: ['.', '>'] },
       },
     }
