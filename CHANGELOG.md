@@ -1,3 +1,8 @@
+## [0.7.0] - 2026-06-19
+
+### 🚀 Features
+
+- *(core,lsp)* Analysis-driven semantic diagnostics
 ## [0.6.0] - 2026-06-19
 
 ### 🚀 Features
