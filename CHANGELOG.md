@@ -1,3 +1,8 @@
+## [0.5.0] - 2026-06-19
+
+### 🚀 Features
+
+- *(core,lsp)* Diagnostics from cc65 build output
 ## [0.4.0] - 2026-06-19
 
 ### 🚀 Features

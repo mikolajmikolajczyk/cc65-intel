@@ -1,6 +1,6 @@
 {
   "name": "@cc65-intel/core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "cc65-dialect C intelligence engine: parse + resolve + complete/hover. Pure data in/out — no editor, no LSP, no DOM.",
   "license": "MIT",
   "repository": {
