@@ -60,4 +60,22 @@ unsigned char *p;`,
     expect(idx.symbols.get('add')?.detail).toBe('int add(int a, int b)')
     expect(idx.symbols.get('run')?.detail).toBe('void run(void)')
   })
+
+  it('indexes cc65 functions decorated with __fastcall__ / __cdecl__', () => {
+    const idx = indexC([], {
+      sysrootHeaders: [
+        {
+          path: 'include/conio.h',
+          text: 'void __fastcall__ cputs (const char* s);\nvoid __cdecl__ gotoxy (unsigned char x);\nvoid clrscr (void);',
+        },
+      ],
+    })
+    // decorated prototypes now index, with the decorator stripped from detail
+    expect(idx.symbols.get('cputs')?.kind).toBe('function')
+    expect(idx.symbols.get('cputs')?.detail).toBe('void cputs (const char* s)')
+    expect(idx.symbols.get('cputs')?.header).toBe('conio.h')
+    expect(idx.symbols.get('gotoxy')?.detail).toBe('void gotoxy (unsigned char x)')
+    // a plain (undecorated) prototype still indexes
+    expect(idx.symbols.get('clrscr')?.kind).toBe('function')
+  })
 })

@@ -75,6 +75,20 @@ void f(void) { Ta| }`
     expect(labels(completeAt(idx, text, offset))).toContain('Tank')
   })
 
+  it('completes cc65 stdlib functions decorated with __fastcall__', () => {
+    const fixture = `void f(void) { cput| }`
+    const { text, offset } = at(fixture)
+    const idx = indexC([{ path: 'main.c', text }], {
+      sysrootHeaders: [
+        {
+          path: 'include/conio.h',
+          text: 'void __fastcall__ cputs (const char* s);\nvoid __fastcall__ cputc (char c);\nvoid __fastcall__ cputcxy (unsigned char x, unsigned char y, char c);',
+        },
+      ],
+    })
+    expect(labels(completeAt(idx, text, offset))).toEqual(['cputc', 'cputcxy', 'cputs'])
+  })
+
   it('carries the header + detail of a stdlib symbol through to the completion', () => {
     const fixture = `void f(void) { cput| }`
     const { text, offset } = at(fixture)

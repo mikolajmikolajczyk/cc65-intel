@@ -8,7 +8,16 @@ import type { Tree } from '@lezer/common'
 // constructs degrade to error nodes locally without breaking the surrounding
 // tree. We build the cc65-aware index on top of this tree (no regex).
 
+// cc65 decorates functions with a calling-convention macro
+// (`void __fastcall__ cputs (const char*);`). @lezer/cpp doesn't know these are
+// macros, so it mis-parses the declaration and the function never gets indexed.
+// Blank each decorator out with EQUAL-LENGTH whitespace before parsing so every
+// downstream offset (member resolution, ranges, hover) stays valid.
+const CC65_DECORATORS = /\b(?:__fastcall__|__cdecl__)\b/g
+export const stripDecorators = (text: string): string =>
+  text.replace(CC65_DECORATORS, (m) => ' '.repeat(m.length))
+
 /** Parse C source into a Lezer syntax tree. */
 export function parseC(text: string): Tree {
-  return parser.parse(text)
+  return parser.parse(stripDecorators(text))
 }

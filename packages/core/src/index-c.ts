@@ -1,6 +1,6 @@
 import type { SyntaxNode } from '@lezer/common'
 import type { CField, CIndex, CSymbol, CType, IndexOptions, SourceFile } from './types'
-import { parseC } from './parse'
+import { parseC, stripDecorators } from './parse'
 import { declTypeName, declaredName, deepChild, slice, walk } from './ast'
 
 // Build a project index from source files by walking each file's Lezer tree:
@@ -87,8 +87,9 @@ function fnName(declarator: SyntaxNode, text: string): string | null {
 function signatureOf(decl: SyntaxNode, text: string): string {
   const body = decl.getChild('CompoundStatement')
   const end = body ? body.from : decl.to
-  return text
-    .slice(decl.from, end)
+  // Blank cc65 calling-convention decorators so the signature reads cleanly
+  // (`void __fastcall__ cputs(...)` → `void cputs(...)`).
+  return stripDecorators(text.slice(decl.from, end))
     .replace(/\s+/g, ' ')
     .replace(/\s*;\s*$/, '')
     .trim()
