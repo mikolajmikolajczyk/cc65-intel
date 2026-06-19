@@ -1,0 +1,59 @@
+# Pre-commit configuration for cc65-intel.
+#
+# Hooks run from node_modules/.bin via `pnpm exec` (run `pnpm install` first).
+# Activate in your clone with `pre-commit install`.
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+        exclude: '^pnpm-lock\.yaml$'
+      - id: check-json
+        exclude: 'tsconfig.*\.json$'
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        language: system
+        entry: pnpm exec prettier --check
+        files: '\.(ts|js|json|md|yaml|yml)$'
+        exclude: '(^pnpm-lock\.yaml$|^LICENSE$)'
+
+      - id: eslint
+        name: eslint
+        language: system
+        entry: pnpm exec eslint
+        files: '\.(ts|js)$'
+        exclude: '^(dist|node_modules)/'
+
+      - id: typecheck
+        name: tsc (build + eslint project)
+        language: system
+        entry: pnpm -s typecheck
+        pass_filenames: false
+        files: '\.ts$'
+
+      - id: madge-circular
+        name: madge --circular
+        language: system
+        entry: pnpm -s madge:circular
+        pass_filenames: false
+        files: '\.ts$'
+
+      # Refuses to sign when user.email has no matching UID on the signing key.
+      - id: gpg-uid-guard
+        name: gpg UID matches user.email
+        language: script
+        entry: scripts/uid-guard.sh
+        pass_filenames: false
+        always_run: true
