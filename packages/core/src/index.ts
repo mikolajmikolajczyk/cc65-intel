@@ -15,6 +15,7 @@ export type {
   IndexOptions,
   CDiagnostic,
   CDiagnosticSeverity,
+  CSignatureHelp,
 } from './types.js'
 
 export { parseC } from './parse.js'
@@ -23,3 +24,4 @@ export { completeAt } from './complete.js'
 export { hoverAt } from './hover.js'
 export { definitionAt } from './definition.js'
 export { parseBuildOutput } from './diagnostics.js'
+export { signatureHelpAt } from './signature.js'

@@ -15,6 +15,7 @@ import {
   hoverAt,
   indexC,
   parseBuildOutput,
+  signatureHelpAt,
   type CDiagnostic,
   type CDiagnosticSeverity,
   type CIndex,
@@ -99,6 +100,7 @@ export function startServer(connection: Connection): void {
         completionProvider: { triggerCharacters: ['.', '>'] },
         hoverProvider: true,
         definitionProvider: true,
+        signatureHelpProvider: { triggerCharacters: ['(', ','] },
       },
     }
   })
@@ -128,6 +130,18 @@ export function startServer(connection: Connection): void {
           : {}),
       }
     })
+  })
+
+  connection.onSignatureHelp((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return null
+    const help = signatureHelpAt(index, doc.getText(), doc.offsetAt(params.position))
+    if (!help) return null
+    return {
+      signatures: [{ label: help.label, parameters: help.parameters.map((p) => ({ label: p })) }],
+      activeSignature: 0,
+      activeParameter: help.activeParameter,
+    }
   })
 
   connection.onHover((params) => {

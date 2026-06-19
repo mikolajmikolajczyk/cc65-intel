@@ -95,6 +95,42 @@ async function hover(
 
 const CONIO = { sysrootHeaders: [{ path: 'include/conio.h', text: 'void cputs(const char* s);' }] }
 
+interface SignatureHelp {
+  signatures: { label: string; parameters: { label: string }[] }[]
+  activeSignature: number
+  activeParameter: number
+}
+
+// Opens a document and runs a signature-help request at `position`.
+async function signatureHelp(
+  text: string,
+  position: Position,
+): Promise<{ result: SignatureHelp | null; client: MessageConnection }> {
+  const c2s = new PassThrough()
+  const s2c = new PassThrough()
+  startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+  const client = createMessageConnection(new StreamMessageReader(s2c), new StreamMessageWriter(c2s))
+  client.listen()
+
+  const uri = 'file:///active.c'
+  await client.sendRequest('initialize', {
+    processId: null,
+    rootUri: null,
+    capabilities: {},
+    initializationOptions: {},
+  })
+  await client.sendNotification('initialized', {})
+  await client.sendNotification('textDocument/didOpen', {
+    textDocument: { uri, languageId: 'c', version: 1, text },
+  })
+
+  const result = await client.sendRequest<SignatureHelp | null>('textDocument/signatureHelp', {
+    textDocument: { uri },
+    position,
+  })
+  return { result, client }
+}
+
 interface Location {
   uri: string
   range: { start: Position; end: Position }
@@ -256,6 +292,17 @@ describe('@cc65-intel/lsp protocol', () => {
     const loc = Array.isArray(result) ? result[0] : result
     expect(loc?.uri).toBe('include/conio.h')
     expect(loc?.range.start).toEqual({ line: 0, character: 5 })
+    client.dispose()
+  })
+
+  it('serves signature help with the active parameter over LSP', async () => {
+    const text = 'int add(int a, int b);\nvoid main(void) {\n  add(1, )\n}'
+    // cursor right after the comma (line 2, char 9): `  add(1, |)`
+    const { result, client } = await signatureHelp(text, { line: 2, character: 9 })
+    expect(result).not.toBeNull()
+    expect(result!.signatures[0]!.label).toBe('int add(int a, int b)')
+    expect(result!.signatures[0]!.parameters.map((p) => p.label)).toEqual(['int a', 'int b'])
+    expect(result!.activeParameter).toBe(1)
     client.dispose()
   })
 

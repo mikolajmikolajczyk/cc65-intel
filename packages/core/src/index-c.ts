@@ -171,6 +171,19 @@ function fnNameNode(declarator: SyntaxNode): SyntaxNode | null {
   return declarator.getChild('Identifier')
 }
 
+/** Each parameter of a `FunctionDeclarator`, as written (whitespace collapsed),
+ *  for signature help. A lone `void` parameter list is normalised to `[]`. */
+function paramsOf(declarator: SyntaxNode, text: string): string[] {
+  const list = declarator.getChild('ParameterList')
+  if (!list) return []
+  const out: string[] = []
+  for (let p = list.firstChild; p; p = p.nextSibling) {
+    if (p.name !== 'ParameterDeclaration') continue
+    out.push(slice(text, p).replace(/\s+/g, ' ').trim())
+  }
+  return out.length === 1 && out[0] === 'void' ? [] : out
+}
+
 function collectSymbols(
   text: string,
   file: string,
@@ -230,12 +243,13 @@ function collectSymbols(
     if (n.name === 'FunctionDefinition') {
       const decl = n.getChild('FunctionDeclarator')
       const id = decl ? fnNameNode(decl) : null
-      if (id) {
+      if (id && decl) {
         add({
           label: slice(text, id),
           kind: 'function',
           file,
           detail: signatureOf(n, text),
+          params: paramsOf(decl, text),
           loc: locOf(uri, id),
           ...hdr,
         })
@@ -252,6 +266,7 @@ function collectSymbols(
           kind: 'function',
           file,
           detail: signatureOf(n, text),
+          params: paramsOf(fnDecl, text),
           loc: locOf(uri, id),
           ...hdr,
         })

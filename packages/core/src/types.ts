@@ -47,6 +47,9 @@ export interface CSymbol {
   type?: string
   /** One-line signature/detail for completion + hover. */
   detail?: string
+  /** For functions: each parameter as written (drives signature help). A lone
+   *  `void` parameter list is recorded as `[]`. */
+  params?: string[]
   /** Header that declares it (cc65 stdlib), for editor auto-include. */
   header?: string
   /** Source file basename. */
@@ -77,6 +80,14 @@ export interface CompletionItem {
 export interface HoverInfo {
   /** Plain-text or markdown hover body. */
   contents: string
+}
+
+/** Signature help for the call enclosing the cursor: the function's one-line
+ *  signature, its parameters (as written), and which one the cursor is on. */
+export interface CSignatureHelp {
+  label: string
+  parameters: string[]
+  activeParameter: number
 }
 
 export type CDiagnosticSeverity = 'error' | 'warning' | 'note'

@@ -28,7 +28,7 @@ host supplies a connection.
 | `completionProvider`     | **done** | trigger chars `.` and `>`         |
 | `hoverProvider`          | **done** | markdown field/symbol/type/enum   |
 | `definitionProvider`     | **done** | cross-file + into sysroot headers |
-| `signatureHelpProvider`  | TODO     | trigger `(` `,`                   |
+| `signatureHelpProvider`  | **done** | trigger `(` `,`; active param     |
 | `referencesProvider`     | TODO     |                                   |
 | `renameProvider`         | TODO     |                                   |
 | `documentSymbolProvider` | TODO     |                                   |
