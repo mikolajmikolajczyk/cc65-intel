@@ -4,7 +4,8 @@
     "noEmit": true,
     "composite": false,
     "declaration": false,
-    "declarationMap": false
+    "declarationMap": false,
+    "lib": ["ES2022", "WebWorker"]
   },
   "include": ["packages/*/src", "packages/*/test"]
 }
