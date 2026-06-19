@@ -66,6 +66,9 @@ importers:
         specifier: ^1.0.12
         version: 1.0.12
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.21
       vscode-jsonrpc:
         specifier: ^8.2.0
         version: 8.2.0

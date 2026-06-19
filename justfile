@@ -72,6 +72,8 @@ release version:
     echo "▸ bump → $ver"
     npm pkg set version="$ver"
     for pkg in packages/*; do (cd "$pkg" && npm pkg set version="$ver"); done
+    # git-cliff --prepend needs the file to exist; create it on the first release.
+    [ -f CHANGELOG.md ] || printf '# Changelog\n\n' > CHANGELOG.md
     echo "▸ changelog…"; npx -y git-cliff@latest --unreleased --tag "$tag" --prepend CHANGELOG.md
     git add package.json packages/*/package.json CHANGELOG.md
     git commit -S -m "chore(release): $tag"
