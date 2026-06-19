@@ -15,6 +15,7 @@ export type {
   IndexOptions,
   CDiagnostic,
   CDiagnosticSeverity,
+  CSemanticDiagnostic,
   CSignatureHelp,
   CDocSymbolKind,
   CDocumentSymbol,
@@ -29,6 +30,7 @@ export { completeAt } from './complete.js'
 export { hoverAt } from './hover.js'
 export { definitionAt } from './definition.js'
 export { parseBuildOutput } from './diagnostics.js'
+export { diagnoseC } from './diagnose.js'
 export { signatureHelpAt } from './signature.js'
 export { documentSymbols } from './outline.js'
 export { findReferences, referencesAt } from './references.js'

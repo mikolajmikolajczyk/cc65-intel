@@ -15,6 +15,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
   completeAt,
   definitionAt,
+  diagnoseC,
   documentSymbols,
   hoverAt,
   indexC,
@@ -139,6 +140,69 @@ export function startServer(connection: Connection): void {
     end: doc.positionAt(end),
   })
 
+  // ---- Diagnostics ----------------------------------------------------------
+  // Two streams share each document's diagnostic list (publishDiagnostics
+  // replaces it wholesale, so they're merged per URI): engine-computed *semantic*
+  // diagnostics (source `cc65-intel`, recomputed live on every change) and
+  // *build-output* diagnostics the host pushes (source `cc65`). A host can tell
+  // them apart — or merge them — by `source`.
+  const buildDiags = new Map<string, Diagnostic[]>()
+
+  // Match a toolchain-printed path to an open document's URI by suffix
+  // (`main.c` ↔ `file:///proj/main.c`). Unmatched files fall back to a `file://`
+  // URI so non-open files (headers pulled into the build) still get squiggles.
+  const resolveUri = (file: string): string => {
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(file)) return file
+    const norm = file.replace(/\\/g, '/')
+    const open = documents
+      .all()
+      .find((d) => d.uri === norm || decodeURIComponent(d.uri).endsWith('/' + norm))
+    return open ? open.uri : 'file://' + (norm.startsWith('/') ? norm : '/' + norm)
+  }
+
+  // A build diagnostic's 1-based line/col → a 0-based Range. When the target
+  // document is open, extend the range to the end of the line so the squiggle is
+  // visible; otherwise mark a zero-width point at the reported column.
+  const buildDiagnostic = (d: CDiagnostic, uri: string): Diagnostic => {
+    const start = { line: Math.max(0, d.line - 1), character: Math.max(0, d.column - 1) }
+    const lineText = documents.get(uri)?.getText().split(/\r?\n/)[start.line]
+    const end =
+      lineText !== undefined ? { line: start.line, character: lineText.length } : { ...start }
+    return {
+      range: { start, end },
+      severity: SEVERITY[d.severity],
+      source: 'cc65',
+      message: d.message,
+    }
+  }
+
+  // Analysis-driven diagnostics for one open document (offsets → ranges).
+  const semanticDiagnostics = (uri: string): Diagnostic[] => {
+    const doc = documents.get(uri)
+    if (!doc) return []
+    return diagnoseC(index, doc.getText()).map((d) => ({
+      range: rangeOf(doc, d.start, d.end),
+      severity: SEVERITY[d.severity],
+      source: 'cc65-intel',
+      message: d.message,
+    }))
+  }
+
+  // Publish the merged (build + semantic) diagnostics for one URI.
+  const publish = (uri: string): void => {
+    void connection.sendDiagnostics({
+      uri,
+      diagnostics: [...(buildDiags.get(uri) ?? []), ...semanticDiagnostics(uri)],
+    })
+  }
+
+  // A reindex touches cross-file types, so semantic diagnostics for every open
+  // doc may change — republish them all (plus any URI carrying build diagnostics).
+  const publishAll = (): void => {
+    const uris = new Set<string>([...documents.all().map((d) => d.uri), ...buildDiags.keys()])
+    for (const uri of uris) publish(uri)
+  }
+
   connection.onInitialize((params): InitializeResult => {
     const opts = params.initializationOptions as InitOptions | undefined
     if (opts?.sysrootHeaders) sysrootHeaders = opts.sysrootHeaders
@@ -159,9 +223,20 @@ export function startServer(connection: Connection): void {
     }
   })
 
-  connection.onInitialized(reindex)
-  documents.onDidChangeContent(reindex)
-  documents.onDidClose(reindex)
+  connection.onInitialized(() => {
+    reindex()
+    publishAll()
+  })
+  documents.onDidChangeContent(() => {
+    reindex()
+    publishAll()
+  })
+  documents.onDidClose((e) => {
+    buildDiags.delete(e.document.uri)
+    reindex()
+    void connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] })
+    publishAll()
+  })
 
   connection.onCompletion((params) => {
     const doc = documents.get(params.textDocument.uri)
@@ -285,51 +360,19 @@ export function startServer(connection: Connection): void {
     }
   })
 
-  // Match a toolchain-printed path to an open document's URI by suffix
-  // (`main.c` ↔ `file:///proj/main.c`). Unmatched files fall back to a `file://`
-  // URI so non-open files (headers pulled into the build) still get squiggles.
-  const resolveUri = (file: string): string => {
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(file)) return file
-    const norm = file.replace(/\\/g, '/')
-    const open = documents
-      .all()
-      .find((d) => d.uri === norm || decodeURIComponent(d.uri).endsWith('/' + norm))
-    return open ? open.uri : 'file://' + (norm.startsWith('/') ? norm : '/' + norm)
-  }
-
-  // A parsed diagnostic's 1-based line/col → a 0-based Range. When the target
-  // document is open, extend the range to the end of the line so the squiggle is
-  // visible; otherwise mark a zero-width point at the reported column.
-  const toDiagnostic = (d: CDiagnostic, uri: string): Diagnostic => {
-    const start = { line: Math.max(0, d.line - 1), character: Math.max(0, d.column - 1) }
-    const lineText = documents.get(uri)?.getText().split(/\r?\n/)[start.line]
-    const end =
-      lineText !== undefined ? { line: start.line, character: lineText.length } : { ...start }
-    return {
-      range: { start, end },
-      severity: SEVERITY[d.severity],
-      source: 'cc65',
-      message: d.message,
-    }
-  }
-
-  // URIs we last published diagnostics to, so a fresh build that no longer
-  // mentions a file clears its stale squiggles.
-  let publishedUris = new Set<string>()
-
   connection.onNotification(BUILD_OUTPUT, (params: BuildOutputParams) => {
-    const byUri = new Map<string, Diagnostic[]>()
+    const prev = new Set(buildDiags.keys())
+    buildDiags.clear()
     for (const d of parseBuildOutput(params.output)) {
       const uri = resolveUri(d.file)
-      const list = byUri.get(uri) ?? []
-      list.push(toDiagnostic(d, uri))
-      byUri.set(uri, list)
+      const list = buildDiags.get(uri) ?? []
+      list.push(buildDiagnostic(d, uri))
+      buildDiags.set(uri, list)
     }
-    for (const [uri, diagnostics] of byUri) void connection.sendDiagnostics({ uri, diagnostics })
-    for (const uri of publishedUris) {
-      if (!byUri.has(uri)) void connection.sendDiagnostics({ uri, diagnostics: [] })
-    }
-    publishedUris = new Set(byUri.keys())
+    // Republish every URI touched by this build or the previous one (so a file
+    // the new build no longer mentions drops its build squiggles, keeping any
+    // semantic ones).
+    for (const uri of new Set<string>([...prev, ...buildDiags.keys()])) publish(uri)
   })
 
   documents.listen(connection)

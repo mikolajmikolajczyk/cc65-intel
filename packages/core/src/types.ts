@@ -124,6 +124,16 @@ export interface CDocumentSymbol {
 
 export type CDiagnosticSeverity = 'error' | 'warning' | 'note'
 
+/** An engine-computed (analysis-driven) diagnostic. Offsets, never line/column —
+ *  the engine speaks offsets (ADR-0001) and the LSP converts. Distinct from
+ *  `CDiagnostic`, which carries the line/column a build tool already emitted. */
+export interface CSemanticDiagnostic {
+  start: number
+  end: number
+  severity: CDiagnosticSeverity
+  message: string
+}
+
 /** One parsed cc65/ca65/ld65 diagnostic. `line`/`column` are 1-based, exactly
  *  as the toolchain emits them — the LSP/editor converts to a 0-based Range.
  *  (Unlike the rest of the engine, which speaks offsets, this is parsed external

@@ -37,21 +37,24 @@ host supplies a connection.
 When you add a capability: advertise it in `onInitialize`, add the handler, map
 engine output → LSP types, and write a [protocol-roundtrip test](testing.md).
 
-### Diagnostics (push model)
+### Diagnostics (two streams, merged per URI)
 
-The browser worker has no compiler, so diagnostics flow the other way: the host
-pushes raw build output, the server parses + republishes it as standard LSP.
+`publishDiagnostics` replaces a document's whole list, so the server **merges**
+two sources into each publish; a host tells them apart by `source`:
 
-- **Inbound** — custom notification `cc65/buildOutput`, param `{ output: string }`:
-  the host sends raw cc65/ca65/ld65 stderr (gcc-style `file:line:col: error: msg`
-  and cc65-native `file(line): Error: msg` are both understood).
-- **Parsing** — pure `parseBuildOutput` lives in `@cc65-intel/core`, so any host
-  reuses it without the LSP.
-- **Outbound** — the server maps each diagnostic's toolchain path to an open
-  document's URI (suffix match; else a `file://` fallback) and emits standard
-  `textDocument/publishDiagnostics`, clearing files a later build no longer
-  mentions. `cc65/buildOutput` is the one inbound custom notification; everything
-  the server emits is standard LSP, so non-madside hosts work unchanged.
+- **Semantic** (`source: cc65-intel`, #29) — engine-computed by `diagnoseC(index,
+text)`, recomputed on every `didOpen`/`didChange`, no build needed. High-confidence
+  checks only (bad member access on a resolved struct/union; unknown struct tag
+  used by value) — it stays silent when it can't resolve, to avoid false positives.
+- **Build-output** (`source: cc65`, #6) — the host pushes raw cc65/ca65/ld65 stderr
+  via the custom `cc65/buildOutput` notification (`{ output: string }`); pure
+  `parseBuildOutput` (in core) handles gcc-style `file:line:col: error: msg` and
+  cc65-native `file(line): Error: msg`. The server maps each path to an open
+  document's URI (suffix match; else a `file://` fallback) and clears files a later
+  build no longer mentions.
+
+`cc65/buildOutput` is the one inbound custom notification; everything the server
+emits is standard LSP, so non-madside hosts work unchanged.
 
 ## Server responsibilities
 

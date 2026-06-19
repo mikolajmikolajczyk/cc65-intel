@@ -216,6 +216,43 @@ async function pushBuildOutput(
   return { published, client }
 }
 
+// Opens docs and collects publishDiagnostics the server emits on open/change
+// (semantic diagnostics), optionally pushing build output afterwards.
+async function openAndCollect(
+  docs: { uri: string; text: string }[],
+  buildOutput?: string,
+): Promise<{ published: PublishParams[]; client: MessageConnection }> {
+  const c2s = new PassThrough()
+  const s2c = new PassThrough()
+  startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+  const client = createMessageConnection(new StreamMessageReader(s2c), new StreamMessageWriter(c2s))
+  client.listen()
+  const published: PublishParams[] = []
+  client.onNotification('textDocument/publishDiagnostics', (p: PublishParams) => {
+    published.push(p)
+  })
+  await client.sendRequest('initialize', {
+    processId: null,
+    rootUri: null,
+    capabilities: {},
+    initializationOptions: {},
+  })
+  await client.sendNotification('initialized', {})
+  for (const d of docs) {
+    await client.sendNotification('textDocument/didOpen', {
+      textDocument: { uri: d.uri, languageId: 'c', version: 1, text: d.text },
+    })
+  }
+  if (buildOutput !== undefined)
+    await client.sendNotification('cc65/buildOutput', { output: buildOutput })
+  await new Promise((r) => setTimeout(r, 50))
+  return { published, client }
+}
+
+// The last publishDiagnostics for a URI (the server may publish several times).
+const latestFor = (published: PublishParams[], uri: string): PublishParams | undefined =>
+  published.filter((p) => p.uri === uri).at(-1)
+
 // Validates the client↔server contract (method names + param/response shapes)
 // end to end.
 describe('@cc65-intel/lsp protocol', () => {
@@ -462,13 +499,51 @@ describe('@cc65-intel/lsp protocol', () => {
     client.dispose()
   })
 
+  it('publishes semantic diagnostics on open (bad member access)', async () => {
+    const main = {
+      uri: 'file:///sem.c',
+      text: 'struct P { int x; };\nvoid f(struct P p) {\n  p.nope = 1;\n}',
+    }
+    const { published, client } = await openAndCollect([main])
+    const diags = latestFor(published, main.uri)?.diagnostics ?? []
+    expect(diags).toHaveLength(1)
+    expect(diags[0]!.source).toBe('cc65-intel')
+    expect(diags[0]!.message).toContain("no member named 'nope'")
+    expect(diags[0]!.range.start).toEqual({ line: 2, character: 4 })
+    client.dispose()
+  })
+
+  it('publishes no semantic diagnostics for valid code', async () => {
+    const main = {
+      uri: 'file:///ok.c',
+      text: 'struct P { int x; };\nvoid f(struct P p){ p.x = 1; }',
+    }
+    const { published, client } = await openAndCollect([main])
+    expect(latestFor(published, main.uri)?.diagnostics ?? []).toEqual([])
+    client.dispose()
+  })
+
+  it('merges build-output and semantic diagnostics under one URI', async () => {
+    const main = {
+      uri: 'file:///proj/merge.c',
+      text: 'struct P { int x; };\nvoid f(struct P p) {\n  p.nope = 1;\n}',
+    }
+    const { published, client } = await openAndCollect([main], 'merge.c:2:1: warning: unused')
+    const diags = latestFor(published, main.uri)?.diagnostics ?? []
+    const sources = diags.map((d) => d.source).sort()
+    expect(sources).toEqual(['cc65', 'cc65-intel'])
+    client.dispose()
+  })
+
   it('publishes diagnostics from pushed cc65 build output', async () => {
     const main = { uri: 'file:///proj/main.c', text: 'void main(void) {\n  undefined_fn();\n}' }
     const { published, client } = await pushBuildOutput(
       [main],
       'main.c:2:3: error: call to undefined function `undefined_fn`',
     )
-    const forMain = published.find((p) => p.uri === main.uri)
+    // didOpen publishes (empty) semantic diagnostics first; the build push
+    // republishes — take the latest for the URI.
+    const forMain = latestFor(published, main.uri)
     expect(forMain).toBeDefined()
     expect(forMain!.diagnostics).toHaveLength(1)
     const d = forMain!.diagnostics[0]!

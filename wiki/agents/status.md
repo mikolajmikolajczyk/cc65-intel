@@ -25,6 +25,10 @@ Snapshot of what works. Update when behaviour changes.
     (pure `parseBuildOutput` in core) and emits standard
     `textDocument/publishDiagnostics`, clearing files a later build no longer
     reports. Browser-friendly (no compiler in the worker).
+  - **Semantic diagnostics** (#29): `diagnoseC` flags bad member access (field
+    absent from a resolved struct/union) + unknown struct tags used by value,
+    live on every change (`source: cc65-intel`), merged per-URI with the build
+    stream. High-confidence only — silent when it can't resolve, no false positives.
   - **Rich features** (M5): `signatureHelpProvider` (active param), `documentSymbolProvider`
     (file outline), `referencesProvider` + `renameProvider` (name-based, across
     open docs; cross-file `WorkspaceEdit`), `semanticTokensProvider` (full).

@@ -89,8 +89,9 @@ describe('@cc65-intel/lsp node stdio transport', () => {
       textDocument: { uri, languageId: 'c', version: 1, text: 'void main(void) {}' },
     })
     const published = await new Promise<Publish>((resolve) => {
+      // didOpen publishes empty semantic diagnostics first; wait for the build push.
       client.onNotification('textDocument/publishDiagnostics', (p: Publish) => {
-        if (p.uri === uri) resolve(p)
+        if (p.uri === uri && p.diagnostics.length > 0) resolve(p)
       })
       void client.sendNotification('cc65/buildOutput', { output: 'diag.c:1:1: error: boom' })
     })
