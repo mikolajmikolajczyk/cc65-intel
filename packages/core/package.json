@@ -15,9 +15,13 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "tsc -b"
   },
   "dependencies": {
     "@lezer/common": "^1.2.0",

@@ -19,8 +19,12 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "prepack": "tsc -b"
   },
   "dependencies": {
     "@cc65-intel/core": "workspace:*",

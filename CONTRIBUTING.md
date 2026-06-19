@@ -35,9 +35,14 @@ Two packages (see [`AGENTS.md`](AGENTS.md) and [`docs/adr/`](docs/adr/)):
 
 ## Releases
 
-Maintainer-only: `just release X.Y.Z` runs the gates, bumps every package,
-generates the changelog (git-cliff), creates a signed tag, and publishes a
-GitHub release.
+Maintainer-only: `just release X.Y.Z` runs the gates, bumps every package
+(lockstep), generates the changelog (git-cliff), creates a signed tag, pushes,
+and publishes a GitHub release.
+
+Pushing the `vX.Y.Z` tag triggers `.github/workflows/release.yml`, which re-runs
+the gate in CI and **publishes the packages to npm** (`@cc65-intel/*`, public,
+with provenance). Requires an `NPM_TOKEN` repository secret — an npm
+**automation** token for the `cc65-intel` org.
 
 ## Licence
 

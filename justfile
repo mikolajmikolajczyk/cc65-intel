@@ -78,6 +78,8 @@ release version:
     git tag -s "$tag" -m "$tag"
 
     # --- publish ---
+    # Pushing the tag triggers .github/workflows/release.yml, which runs the
+    # gates again in CI and publishes to npm (token in GitHub Secrets, not local).
     echo "▸ push…"; git push origin main; git push origin "$tag"
     notes="$(mktemp)"
     awk -v v="$ver" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > "$notes"
