@@ -25,6 +25,13 @@ Snapshot of what works. Update when behaviour changes.
     (pure `parseBuildOutput` in core) and emits standard
     `textDocument/publishDiagnostics`, clearing files a later build no longer
     reports. Browser-friendly (no compiler in the worker).
+  - **Rich features** (M5): `signatureHelpProvider` (active param), `documentSymbolProvider`
+    (file outline), `referencesProvider` + `renameProvider` (name-based, across
+    open docs; cross-file `WorkspaceEdit`), `semanticTokensProvider` (full).
+  - **node stdio transport** (#7): `cc65-lsp --stdio` bin + `@cc65-intel/lsp/node`,
+    sharing `startServer` with the worker (Neovim / VS Code / any LSP client).
+  - **Quality**: a fixtures-based completion-quality harness (#4) guards the
+    resolver against silent regressions (`packages/core/test/fixtures/*.c`).
 - **Consumed by madside** in its C editor behind `VITE_MADSIDE_CC65_LSP=1`.
   Parity (stdlib completion + auto-include + hover) is shipped engine-side; the
   default-on flip is wired on the madside side (madside #63).
@@ -49,9 +56,8 @@ Documented misses (lezer/dialect limits, tracked for later):
 
 ## Not yet (open issues)
 
-- **Awesome extras**: signature help, references / rename / document symbols,
-  semantic tokens.
-- **Transports**: node stdio; VS Code extension.
-- **Quality**: completion-quality harness (#4).
+- **Ecosystem**: VS Code extension (#8) — packages the `cc65-lsp` stdio server.
+- **Resolver accuracy**: the documented misses above (call-result types, casts,
+  type-producing macros, …).
 
 See `gh issue list` + [working-on-issues.md](working-on-issues.md).
