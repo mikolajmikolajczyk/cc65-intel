@@ -40,9 +40,23 @@ Maintainer-only: `just release X.Y.Z` runs the gates, bumps every package
 and publishes a GitHub release.
 
 Pushing the `vX.Y.Z` tag triggers `.github/workflows/release.yml`, which re-runs
-the gate in CI and **publishes the packages to npm** (`@cc65-intel/*`, public,
-with provenance). Requires an `NPM_TOKEN` repository secret — an npm
-**automation** token for the `cc65-intel` org.
+the gate in CI and **publishes the packages to npm** (`@cc65-intel/*`, public)
+via **OIDC trusted publishing** — no token, provenance automatic.
+
+**First publish (one-time bootstrap).** Trusted publishing can only be
+configured after a package exists, so the very first release is published
+locally:
+
+```sh
+npm login
+just release 0.1.0          # bump + changelog + signed tag + push + gh release
+pnpm -r publish --access public   # publish 0.1.0 from your logged-in session
+```
+
+Then, on npmjs.com, add a **Trusted Publisher** to each package
+(`@cc65-intel/core`, `@cc65-intel/lsp`) → GitHub Actions →
+`mikolajmikolajczyk/cc65-intel`, workflow `release.yml`. From the next release
+on, `just release X.Y.Z` is enough — CI publishes via OIDC.
 
 ## Licence
 

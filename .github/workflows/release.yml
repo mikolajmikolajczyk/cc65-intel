@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # npm trusted publishing (OIDC) — no token, provenance is automatic
 
 jobs:
   publish:
@@ -32,8 +32,9 @@ jobs:
       - run: pnpm build
       - run: pnpm test
 
-      # --- publish (workspace:* → version is substituted by pnpm) ---
+      # --- publish via OIDC trusted publishing (no token; provenance automatic) ---
+      # Requires a Trusted Publisher configured on npm for each package
+      # (GitHub Actions → mikolajmikolajczyk/cc65-intel, workflow release.yml).
+      # The first publish must be a manual/local one — trusted publishing can
+      # only be configured after the package exists. See CONTRIBUTING.md.
       - run: pnpm -r publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: 'true'
