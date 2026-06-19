@@ -28,4 +28,3 @@
 - Auto-publish to npm on tag (release workflow)
 - Switch release to npm OIDC trusted publishing (no token)
 # Changelog
-
