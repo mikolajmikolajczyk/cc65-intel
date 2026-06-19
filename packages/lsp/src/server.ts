@@ -32,6 +32,27 @@ interface InitOptions {
   sysrootHeaders?: SourceFile[]
 }
 
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Any `#include <h>` / `#include "h"` line.
+const INCLUDE_RE = /^[ \t]*#[ \t]*include[ \t]*[<"]([^>"]+)[>"].*$/gm
+
+/** Where (offset into `text`) and what to insert so `header` is `#include`d,
+ *  or null if it already is. The edit goes after the last existing `#include`
+ *  (else at the top of the file). Pure host-side text logic — no engine. */
+function includeInsert(text: string, header: string): { offset: number; newText: string } | null {
+  if (new RegExp(`^[ \\t]*#[ \\t]*include[ \\t]*[<"]${escapeRe(header)}[>"]`, 'm').test(text)) {
+    return null
+  }
+  let last: RegExpExecArray | null = null
+  INCLUDE_RE.lastIndex = 0
+  for (let m = INCLUDE_RE.exec(text); m; m = INCLUDE_RE.exec(text)) last = m
+  if (!last) return { offset: 0, newText: `#include <${header}>\n` }
+  const lineEnd = text.indexOf('\n', last.index + last[0].length)
+  if (lineEnd === -1) return { offset: text.length, newText: `\n#include <${header}>` }
+  return { offset: lineEnd + 1, newText: `#include <${header}>\n` }
+}
+
 export function startServer(connection: Connection): void {
   const documents = new TextDocuments(TextDocument)
   let sysrootHeaders: SourceFile[] = []
@@ -64,15 +85,24 @@ export function startServer(connection: Connection): void {
   connection.onCompletion((params) => {
     const doc = documents.get(params.textDocument.uri)
     if (!doc) return []
+    const text = doc.getText()
     const offset = doc.offsetAt(params.position)
-    return completeAt(index, doc.getText(), offset).map((item) => ({
-      label: item.label,
-      kind: KIND[item.kind],
-      detail: item.detail,
-      // The declaring header rides along in `data` for the client / the
-      // auto-`#include` resolver (issue #19) to turn into additionalTextEdits.
-      ...(item.header ? { data: { header: item.header } } : {}),
-    }))
+    return completeAt(index, text, offset).map((item) => {
+      // A symbol from a sysroot header that the buffer doesn't include yet gets
+      // an auto-`#include` edit the host applies on accept (madside parity).
+      const ins = item.header ? includeInsert(text, item.header) : null
+      const pos = ins ? doc.positionAt(ins.offset) : null
+      return {
+        label: item.label,
+        kind: KIND[item.kind],
+        detail: item.detail,
+        // The declaring header rides along in `data` for clients that want it.
+        ...(item.header ? { data: { header: item.header } } : {}),
+        ...(ins && pos
+          ? { additionalTextEdits: [{ range: { start: pos, end: pos }, newText: ins.newText }] }
+          : {}),
+      }
+    })
   })
 
   documents.listen(connection)
