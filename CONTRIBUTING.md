@@ -7,13 +7,25 @@ the roadmap.
 
 ## Setup
 
+Easiest — the Nix flake gives you node/pnpm/just/pre-commit and **installs the
+git hooks for you** (so commits run the same gate as CI and don't land red):
+
 ```sh
+nix develop          # or `direnv allow` (auto-loads via .envrc)
 pnpm install
-pre-commit install     # optional: run the CI checks on every commit
-just check             # lint + format + typecheck + madge + build + test
+just check           # lint + format + typecheck + madge + build + test
 ```
 
-Requires Node ≥ 22 (see `.nvmrc`) and pnpm.
+Without Nix:
+
+```sh
+pnpm install         # `prepare` best-effort-installs the pre-commit hooks
+pre-commit install   # if you have pre-commit but the above didn't run it
+just check
+```
+
+Requires Node ≥ 22 (see `.nvmrc`) and pnpm. **Install the pre-commit hooks** —
+they run lint/format/types/madge locally so you don't push CI-breaking commits.
 
 ## Project layout
 
