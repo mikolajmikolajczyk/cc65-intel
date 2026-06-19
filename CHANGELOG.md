@@ -1,3 +1,8 @@
+## [0.4.0] - 2026-06-19
+
+### 🚀 Features
+
+- *(core,lsp)* Go-to-definition
 ## [0.3.0] - 2026-06-19
 
 ### 🚀 Features
