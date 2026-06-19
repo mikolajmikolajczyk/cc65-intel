@@ -1,0 +1,24 @@
+{
+  "name": "@cc65-intel/core",
+  "version": "0.0.0",
+  "description": "cc65-dialect C intelligence engine: parse + resolve + complete/hover. Pure data in/out — no editor, no LSP, no DOM.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lezer/common": "^1.2.0",
+    "@lezer/cpp": "^1.1.6"
+  }
+}

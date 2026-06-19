@@ -1,0 +1,16 @@
+{
+  "name": "@cc65-intel/lsp",
+  "version": "0.0.0",
+  "description": "Thin LSP server over @cc65-intel/core — cc65 C completion, hover, diagnostics. Browser (worker) + node (stdio).",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@cc65-intel/core": "workspace:*"
+  }
+}
