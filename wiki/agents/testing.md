@@ -50,11 +50,22 @@ const res = await client.sendRequest('textDocument/completion', { textDocument: 
 **Every new LSP capability gets one of these.** It proves the method name, params,
 and response shape match what a host (madside) will send/receive.
 
-## Completion-quality harness (issue #4)
+## Completion-quality harness (issue #4 — shipped)
 
-A fixtures-based harness over real cc65 headers + sample programs, asserting a
-measurable pass-rate, so resolver changes don't silently regress. Build this
-before scaling accuracy work.
+`packages/core/test/completion-harness.test.ts` runs every
+`packages/core/test/fixtures/*.c`: a self-contained cc65 snippet with a single
+`|` cursor marker and a directive:
+
+```c
+// @expect-all: x, name        // completion labels must be exactly this set
+// @expect-includes: cputs     // labels must include these (subset)
+```
+
+The runner strips the `|`, indexes the file, runs `completeAt` at the marker,
+and scores each fixture. It asserts an overall pass-rate ≥ 0.9 and a
+sensitivity check (an empty index tanks the rate) so the harness provably
+catches regressions. **Add a fixture** when you ship/extend a completion path —
+drop a `.c` file in `fixtures/`, no runner changes needed.
 
 ## Before claiming done
 
