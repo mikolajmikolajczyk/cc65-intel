@@ -21,9 +21,7 @@ describe('indexC — type extraction', () => {
   })
 
   it('extracts a typedef struct under its alias', () => {
-    const idx = indexC([
-      { path: 'lib/types.h', text: 'typedef struct { int a; int b; } Bar;' },
-    ])
+    const idx = indexC([{ path: 'lib/types.h', text: 'typedef struct { int a; int b; } Bar;' }])
     const bar = idx.types.get('Bar')
     expect(bar).toBeDefined()
     expect(bar!.kind).toBe('typedef')
@@ -32,10 +30,9 @@ describe('indexC — type extraction', () => {
   })
 
   it('indexes sysroot headers alongside project files', () => {
-    const idx = indexC(
-      [{ path: 'src/main.c', text: 'struct Foo g;' }],
-      { sysrootHeaders: [{ path: 'include/foo.h', text: 'struct Foo { int v; };' }] },
-    )
+    const idx = indexC([{ path: 'src/main.c', text: 'struct Foo g;' }], {
+      sysrootHeaders: [{ path: 'include/foo.h', text: 'struct Foo { int v; };' }],
+    })
     expect(idx.types.get('Foo')?.fields[0]?.name).toBe('v')
   })
 
