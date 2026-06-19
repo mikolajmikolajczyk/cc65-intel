@@ -1,6 +1,6 @@
-import type { CIndex, CSymbol, CType, HoverInfo } from './types'
-import { wordAt } from './ast'
-import { resolveChainType } from './resolve'
+import type { CIndex, CSymbol, CType, HoverInfo } from './types.js'
+import { wordAt } from './ast.js'
+import { resolveChainType } from './resolve.js'
 
 // Hover info for the symbol/field/type under `offset`. Mirrors completion's
 // member/identifier split: a `lhs.word` / `lhs->word` access resolves the field

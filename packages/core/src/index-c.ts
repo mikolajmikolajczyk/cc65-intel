@@ -1,7 +1,15 @@
 import type { SyntaxNode } from '@lezer/common'
-import type { CField, CIndex, CLocation, CSymbol, CType, IndexOptions, SourceFile } from './types'
-import { parseC, stripDecorators } from './parse'
-import { declTypeName, declaredIds, deepChild, slice, walk } from './ast'
+import type {
+  CField,
+  CIndex,
+  CLocation,
+  CSymbol,
+  CType,
+  IndexOptions,
+  SourceFile,
+} from './types.js'
+import { parseC, stripDecorators } from './parse.js'
+import { declTypeName, declaredIds, deepChild, slice, walk } from './ast.js'
 
 // Build a project index from source files by walking each file's Lezer tree:
 // the type table (struct / union / typedef → fields) and the top-level symbol

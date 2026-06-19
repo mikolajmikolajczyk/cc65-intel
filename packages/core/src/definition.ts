@@ -1,6 +1,6 @@
-import type { CIndex, CLocation } from './types'
-import { wordAt } from './ast'
-import { resolveChainType } from './resolve'
+import type { CIndex, CLocation } from './types.js'
+import { wordAt } from './ast.js'
+import { resolveChainType } from './resolve.js'
 
 // The definition location of the identifier under `offset`. Mirrors hover's
 // member/identifier split: a `lhs.word` / `lhs->word` access resolves the

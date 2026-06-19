@@ -5,7 +5,7 @@
 // against — the LSP/editor maps these to a 0-based Range. That's a transport
 // concern, kept out of here like every other position-conversion in the engine.
 
-import type { CDiagnostic, CDiagnosticSeverity } from './types'
+import type { CDiagnostic, CDiagnosticSeverity } from './types.js'
 
 const normalizeSeverity = (raw: string): CDiagnosticSeverity => {
   const s = raw.toLowerCase()

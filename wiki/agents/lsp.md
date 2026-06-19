@@ -9,8 +9,16 @@ host supplies a connection.
 - **Browser Web Worker** — `packages/lsp/src/browser.ts` (`@cc65-intel/lsp/browser`).
   `BrowserMessageReader/Writer(self)` + `createConnection`. **This is the
   transport madside uses; it must always work.**
-- **node stdio** — planned (`@cc65-intel/lsp/node`), for VS Code / Neovim. Shares
-  the same `startServer`.
+- **node stdio** — `packages/lsp/src/node.ts` (`@cc65-intel/lsp/node`), for
+  VS Code / Neovim. `createConnection(ProposedFeatures.all)` reads `--stdio` from
+  argv; shipped as the `cc65-lsp` bin (`cc65-lsp --stdio`). Shares the same
+  `startServer` — no node-only logic on the request path.
+
+> **ESM gotcha:** the node entry runs under node's own ESM loader (not a
+> bundler), so every relative import in `core` carries an explicit `.js`
+> extension and `vscode-languageserver/node.js` is imported with the extension —
+> `moduleResolution: bundler` accepts the `.js` while node requires it. Keep new
+> relative imports `.js`-suffixed or the published bin breaks.
 
 ## Capabilities (advertised in `onInitialize`)
 

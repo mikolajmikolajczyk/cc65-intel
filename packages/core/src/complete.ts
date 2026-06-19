@@ -1,5 +1,5 @@
-import type { CIndex, CType, CompletionItem } from './types'
-import { resolveChainType } from './resolve'
+import type { CIndex, CType, CompletionItem } from './types.js'
+import { resolveChainType } from './resolve.js'
 
 // Answer a completion request at `offset` in `text`, given a built `index`.
 //   - after `.` / `->`  → resolve the left-hand expression's type, list its fields

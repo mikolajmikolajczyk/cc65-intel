@@ -15,11 +15,11 @@ export type {
   IndexOptions,
   CDiagnostic,
   CDiagnosticSeverity,
-} from './types'
+} from './types.js'
 
-export { parseC } from './parse'
-export { indexC } from './index-c'
-export { completeAt } from './complete'
-export { hoverAt } from './hover'
-export { definitionAt } from './definition'
-export { parseBuildOutput } from './diagnostics'
+export { parseC } from './parse.js'
+export { indexC } from './index-c.js'
+export { completeAt } from './complete.js'
+export { hoverAt } from './hover.js'
+export { definitionAt } from './definition.js'
+export { parseBuildOutput } from './diagnostics.js'

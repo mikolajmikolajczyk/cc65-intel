@@ -1,5 +1,5 @@
-import type { CIndex, CType } from './types'
-import { resolveVarType } from './ast'
+import type { CIndex, CType } from './types.js'
+import { resolveVarType } from './ast.js'
 
 // Member-access resolution shared by completion and hover. Given a base
 // identifier and a chain of `.field` / `->field` / `[…]` accessors, walk the

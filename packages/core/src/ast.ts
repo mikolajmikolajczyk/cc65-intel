@@ -1,5 +1,5 @@
 import type { SyntaxNode } from '@lezer/common'
-import { parseC } from './parse'
+import { parseC } from './parse.js'
 
 // Shared Lezer-tree helpers used by the indexer, the completer, and hover.
 
