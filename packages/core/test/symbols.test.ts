@@ -61,6 +61,22 @@ unsigned char *p;`,
     expect(idx.symbols.get('run')?.detail).toBe('void run(void)')
   })
 
+  it('indexes a cc65 register macro as a typed global, not a plain macro', () => {
+    const idx = indexC([], {
+      sysrootHeaders: [
+        {
+          path: 'include/_vic2.h',
+          text: 'struct __vic2 { unsigned char bordercolor; };\n#define VIC (*(struct __vic2*)0xD000)\n#define PLAIN 1',
+        },
+      ],
+    })
+    expect(idx.symbols.get('VIC')?.kind).toBe('global')
+    expect(idx.symbols.get('VIC')?.type).toBe('__vic2')
+    expect(idx.symbols.get('VIC')?.header).toBe('_vic2.h')
+    // a normal object-like macro is still a macro
+    expect(idx.symbols.get('PLAIN')?.kind).toBe('macro')
+  })
+
   it('indexes cc65 functions decorated with __fastcall__ / __cdecl__', () => {
     const idx = indexC([], {
       sysrootHeaders: [

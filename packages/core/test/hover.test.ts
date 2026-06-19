@@ -55,6 +55,21 @@ describe('hoverAt', () => {
     expect(h!.contents).toContain('*macro*')
   })
 
+  it('hovers a cc65 register field (VIC.bordercolor)', () => {
+    const { text, offset } = at('void main(void) { VIC.border|color = 0; }')
+    const idx = indexC([{ path: 'main.c', text }], {
+      sysrootHeaders: [
+        {
+          path: 'include/_vic2.h',
+          text: 'struct __vic2 { unsigned char bordercolor; };\n#define VIC (*(struct __vic2*)0xD000)',
+        },
+      ],
+    })
+    const h = hoverAt(idx, text, offset)
+    expect(h!.contents).toContain('unsigned char bordercolor')
+    expect(h!.contents).toContain('*field*')
+  })
+
   it('returns null on a miss (unknown word / whitespace)', () => {
     const { text, offset } = at('int x = 1; // no|pe')
     const idx = indexC([{ path: 'main.c', text }])

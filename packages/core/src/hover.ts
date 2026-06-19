@@ -32,7 +32,7 @@ export function hoverAt(index: CIndex, text: string, offset: number): HoverInfo 
   const member = MEMBER_BEFORE.exec(text.slice(0, word.from))
   if (member) {
     const lhs = member[1] ?? ''
-    const type = resolveVarType(text, lhs, word.from)
+    const type = resolveVarType(text, lhs, word.from) ?? index.symbols.get(lhs)?.type ?? null
     const field = type ? index.types.get(type)?.fields.find((f) => f.name === word.word) : undefined
     return field ? { contents: fieldHover(field.name, field.type) } : null
   }

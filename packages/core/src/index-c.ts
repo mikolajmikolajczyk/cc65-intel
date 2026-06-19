@@ -12,6 +12,10 @@ import { declTypeName, declaredName, deepChild, slice, walk } from './ast'
 
 const basename = (path: string): string => path.split('/').pop() ?? path
 
+// A cc65 register-macro body's pointer cast: `(struct __vic2*)` / `(union x *)`.
+// The captured tag is the struct/union the macro instance has.
+const REGISTER_CAST = /\(\s*(?:struct|union)\s+(\w+)\s*\*\s*\)/
+
 /** A FieldDeclaration's type, as written: the type specifier text plus a `*`
  *  per pointer level. Used both as the completion detail and to resolve nested
  *  `a.b.c` member chains. */
@@ -107,12 +111,19 @@ function collectSymbols(
     if (!into.has(s.label)) into.set(s.label, s)
   }
 
-  // `#define NAME` anywhere.
+  // `#define NAME …`. cc65 exposes hardware registers as `#define VIC
+  // (*(struct __vic2*)0xd000)` — index those as a typed global so `VIC.`
+  // resolves to the struct's fields; everything else is a plain macro.
   walk(root, (n) => {
     if (n.name !== 'PreprocDirective') return
     if (!n.getChild('#define')) return
     const id = n.getChild('Identifier')
-    if (id) add({ label: slice(text, id), kind: 'macro', file, ...hdr })
+    if (!id) return
+    const label = slice(text, id)
+    const arg = n.getChild('PreprocArg')
+    const tag = arg ? REGISTER_CAST.exec(slice(text, arg))?.[1] : undefined
+    if (tag) add({ label, kind: 'global', type: tag, detail: `struct ${tag}`, file, ...hdr })
+    else add({ label, kind: 'macro', file, ...hdr })
   })
 
   // Top-level functions + globals (direct children of the program root only, so

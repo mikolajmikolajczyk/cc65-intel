@@ -51,7 +51,9 @@ export function completeAt(index: CIndex, text: string, offset: number): Complet
   if (member) {
     const lhs = member[1] ?? ''
     const partial = member[2] ?? ''
-    const type = resolveVarType(text, lhs, offset)
+    // A buffer declaration wins (locals shadow), else an indexed typed symbol —
+    // e.g. a cc65 register macro `#define VIC (*(struct __vic2*)…)`.
+    const type = resolveVarType(text, lhs, offset) ?? index.symbols.get(lhs)?.type ?? null
     return type ? memberCompletions(index, type, partial) : []
   }
 

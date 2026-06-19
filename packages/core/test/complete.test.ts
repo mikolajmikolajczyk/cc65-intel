@@ -65,6 +65,53 @@ void f(void) { ad| }`
     expect(labels(completeAt(idx, text, offset))).toEqual(['addNums'])
   })
 
+  it('resolves a cc65 register macro var to its struct fields (VIC.)', () => {
+    const vic2 = `struct __vic2 {
+  unsigned char ctrl1;
+  unsigned char bordercolor;
+  unsigned char bgcolor0;
+};
+#define VIC (*(struct __vic2*)0xD000)`
+    const fixture = `void main(void) { VIC.| }`
+    const { text, offset } = at(fixture)
+    const idx = indexC([{ path: 'main.c', text }], {
+      sysrootHeaders: [{ path: 'include/_vic2.h', text: vic2 }],
+    })
+    expect(labels(completeAt(idx, text, offset))).toEqual(['bgcolor0', 'bordercolor', 'ctrl1'])
+  })
+
+  it('filters register fields by the partial member prefix (VIC.bor)', () => {
+    const vic2 = `struct __vic2 { unsigned char bordercolor; unsigned char bgcolor0; };
+#define VIC (*(struct __vic2*)0xD000)`
+    const fixture = `void main(void) { VIC.bor| }`
+    const { text, offset } = at(fixture)
+    const idx = indexC([{ path: 'main.c', text }], {
+      sysrootHeaders: [{ path: 'include/_vic2.h', text: vic2 }],
+    })
+    expect(labels(completeAt(idx, text, offset))).toEqual(['bordercolor'])
+  })
+
+  it('resolves SID. and CIA1. register macros the same way', () => {
+    const sid = `struct __sid { unsigned char v1_freq_lo; unsigned char v1_freq_hi; };
+#define SID (*(struct __sid*)0xD400)`
+    const cia = `struct __6526 { unsigned char pra; unsigned char prb; };
+#define CIA1 (*(struct __6526*)0xDC00)`
+    const sysrootHeaders = [
+      { path: 'include/_sid.h', text: sid },
+      { path: 'include/_6526.h', text: cia },
+    ]
+    {
+      const { text, offset } = at(`void main(void) { SID.| }`)
+      const idx = indexC([{ path: 'main.c', text }], { sysrootHeaders })
+      expect(labels(completeAt(idx, text, offset))).toEqual(['v1_freq_hi', 'v1_freq_lo'])
+    }
+    {
+      const { text, offset } = at(`void main(void) { CIA1.| }`)
+      const idx = indexC([{ path: 'main.c', text }], { sysrootHeaders })
+      expect(labels(completeAt(idx, text, offset))).toEqual(['pra', 'prb'])
+    }
+  })
+
   it('offers types + symbols when the prefix matches several', () => {
     const fixture = `struct Tank { int hp; };
 int tankCount;
