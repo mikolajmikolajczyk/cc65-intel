@@ -5,6 +5,7 @@
 export type {
   SourceFile,
   CSymbolKind,
+  CLocation,
   CField,
   CType,
   CSymbol,
@@ -18,3 +19,4 @@ export { parseC } from './parse'
 export { indexC } from './index-c'
 export { completeAt } from './complete'
 export { hoverAt } from './hover'
+export { definitionAt } from './definition'

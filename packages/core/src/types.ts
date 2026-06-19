@@ -12,10 +12,21 @@ export interface SourceFile {
 
 export type CSymbolKind = 'function' | 'macro' | 'type' | 'global' | 'field'
 
+/** Where a definition lives: the source file's path (as given to `indexC`, the
+ *  LSP turns it into a document URI) and the character offset range of the
+ *  defining identifier. Offsets, never line/column — conversion is the LSP's job. */
+export interface CLocation {
+  uri: string
+  start: number
+  end: number
+}
+
 export interface CField {
   name: string
   /** The field's type name as written, so nested `a.b.c` can resolve. */
   type: string
+  /** Definition location of the field's declarator (go-to-definition). */
+  loc?: CLocation
 }
 
 export interface CType {
@@ -25,6 +36,8 @@ export interface CType {
   fields: CField[]
   /** Source file basename the type was found in (hover provenance). */
   file: string
+  /** Definition location of the type tag (go-to-definition). */
+  loc?: CLocation
 }
 
 export interface CSymbol {
@@ -38,6 +51,8 @@ export interface CSymbol {
   header?: string
   /** Source file basename. */
   file: string
+  /** Definition location of the symbol's defining identifier (go-to-definition). */
+  loc?: CLocation
 }
 
 /** Built index for a project: types-by-name + top-level symbols + typedef

@@ -9,6 +9,7 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import {
   completeAt,
+  definitionAt,
   hoverAt,
   indexC,
   type CIndex,
@@ -77,6 +78,7 @@ export function startServer(connection: Connection): void {
         textDocumentSync: TextDocumentSyncKind.Full,
         completionProvider: { triggerCharacters: ['.', '>'] },
         hoverProvider: true,
+        definitionProvider: true,
       },
     }
   })
@@ -114,6 +116,23 @@ export function startServer(connection: Connection): void {
     const info = hoverAt(index, doc.getText(), doc.offsetAt(params.position))
     if (!info) return null
     return { contents: { kind: MarkupKind.Markdown, value: info.contents } }
+  })
+
+  connection.onDefinition((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return null
+    const loc = definitionAt(index, doc.getText(), doc.offsetAt(params.position))
+    if (!loc) return null
+    // Convert the engine's offset range to a line/column range against the
+    // target file — an open document, else a sysroot header from init options.
+    const targetText =
+      documents.get(loc.uri)?.getText() ?? sysrootHeaders.find((h) => h.path === loc.uri)?.text
+    if (targetText === undefined) return null
+    const td = TextDocument.create(loc.uri, 'c', 0, targetText)
+    return {
+      uri: loc.uri,
+      range: { start: td.positionAt(loc.start), end: td.positionAt(loc.end) },
+    }
   })
 
   documents.listen(connection)

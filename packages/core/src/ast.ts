@@ -74,19 +74,26 @@ export function declTypeName(decl: SyntaxNode, text: string): string {
 // A declarator wrapping the declared identifier: pointer / array / init.
 const DECLARATOR = new Set(['PointerDeclarator', 'ArrayDeclarator', 'InitDeclarator'])
 
-/** Every name declared by a `Declaration`, in source order — covers multiple
- *  declarators (`int a, b, c;`) and pointer/array/init forms (`Foo *p, arr[4]`).
- *  Function declarators are excluded (handled separately). */
-export function declaredNames(decl: SyntaxNode, text: string): string[] {
-  const out: string[] = []
+/** Every identifier declared by a `Declaration`, in source order — covers
+ *  multiple declarators (`int a, b, c;`) and pointer/array/init forms
+ *  (`Foo *p, arr[4]`), with each name's offset range. Function declarators are
+ *  excluded (handled separately). */
+export function declaredIds(
+  decl: SyntaxNode,
+  text: string,
+): { name: string; from: number; to: number }[] {
+  const out: { name: string; from: number; to: number }[] = []
   for (let ch = decl.firstChild; ch; ch = ch.nextSibling) {
-    if (ch.name === 'Identifier') out.push(slice(text, ch))
-    else if (DECLARATOR.has(ch.name)) {
-      const id = deepChild(ch, 'Identifier')
-      if (id) out.push(slice(text, id))
-    }
+    const id =
+      ch.name === 'Identifier' ? ch : DECLARATOR.has(ch.name) ? deepChild(ch, 'Identifier') : null
+    if (id) out.push({ name: slice(text, id), from: id.from, to: id.to })
   }
   return out
+}
+
+/** The declared names of a `Declaration`, in source order. */
+export function declaredNames(decl: SyntaxNode, text: string): string[] {
+  return declaredIds(decl, text).map((d) => d.name)
 }
 
 /** The declared name of a non-function declarator (`Identifier`, possibly under a

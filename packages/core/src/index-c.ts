@@ -1,7 +1,7 @@
 import type { SyntaxNode } from '@lezer/common'
-import type { CField, CIndex, CSymbol, CType, IndexOptions, SourceFile } from './types'
+import type { CField, CIndex, CLocation, CSymbol, CType, IndexOptions, SourceFile } from './types'
 import { parseC, stripDecorators } from './parse'
-import { declTypeName, declaredNames, deepChild, slice, walk } from './ast'
+import { declTypeName, declaredIds, deepChild, slice, walk } from './ast'
 
 // Build a project index from source files by walking each file's Lezer tree:
 // the type table (struct / union / typedef → fields) and the top-level symbol
@@ -31,25 +31,27 @@ function fieldType(decl: SyntaxNode, text: string): string {
   return type
 }
 
-function fieldsOf(list: SyntaxNode, text: string): CField[] {
+const locOf = (uri: string, n: SyntaxNode): CLocation => ({ uri, start: n.from, end: n.to })
+
+function fieldsOf(list: SyntaxNode, text: string, uri: string): CField[] {
   const out: CField[] = []
   for (let decl = list.firstChild; decl; decl = decl.nextSibling) {
     if (decl.name !== 'FieldDeclaration') continue
     const id = deepChild(decl, 'FieldIdentifier')
     if (!id) continue
-    out.push({ name: slice(text, id), type: fieldType(decl, text) })
+    out.push({ name: slice(text, id), type: fieldType(decl, text), loc: locOf(uri, id) })
   }
   return out
 }
 
 /** Enumerators of an `enum X { … }`, each carried as a field whose "type" is the
  *  enum name (so hover can name the enum). */
-function enumeratorsOf(list: SyntaxNode, text: string, enumName: string): CField[] {
+function enumeratorsOf(list: SyntaxNode, text: string, enumName: string, uri: string): CField[] {
   const out: CField[] = []
   for (let e = list.firstChild; e; e = e.nextSibling) {
     if (e.name !== 'Enumerator') continue
     const id = e.getChild('Identifier')
-    if (id) out.push({ name: slice(text, id), type: `enum ${enumName}` })
+    if (id) out.push({ name: slice(text, id), type: `enum ${enumName}`, loc: locOf(uri, id) })
   }
   return out
 }
@@ -57,6 +59,7 @@ function enumeratorsOf(list: SyntaxNode, text: string, enumName: string): CField
 function collectTypes(
   text: string,
   file: string,
+  uri: string,
   into: Map<string, CType>,
   aliasInto: Map<string, string>,
 ): void {
@@ -72,8 +75,9 @@ function collectTypes(
           into.set(name, {
             name,
             kind: n.name === 'UnionSpecifier' ? 'union' : 'struct',
-            fields: fieldsOf(list, text),
+            fields: fieldsOf(list, text, uri),
             file,
+            loc: locOf(uri, tag),
           })
         }
       }
@@ -86,7 +90,13 @@ function collectTypes(
       if (list && tag) {
         const name = slice(text, tag)
         if (!into.has(name)) {
-          into.set(name, { name, kind: 'enum', fields: enumeratorsOf(list, text, name), file })
+          into.set(name, {
+            name,
+            kind: 'enum',
+            fields: enumeratorsOf(list, text, name, uri),
+            file,
+            loc: locOf(uri, tag),
+          })
         }
       }
       return
@@ -100,7 +110,13 @@ function collectTypes(
         if (alias) {
           const name = slice(text, alias)
           if (!into.has(name)) {
-            into.set(name, { name, kind: 'typedef', fields: fieldsOf(list, text), file })
+            into.set(name, {
+              name,
+              kind: 'typedef',
+              fields: fieldsOf(list, text, uri),
+              file,
+              loc: locOf(uri, alias),
+            })
           }
         }
         return
@@ -127,12 +143,6 @@ function collectTypes(
   })
 }
 
-/** The function name from a `FunctionDeclarator`. */
-function fnName(declarator: SyntaxNode, text: string): string | null {
-  const id = declarator.getChild('Identifier')
-  return id ? slice(text, id) : null
-}
-
 /** A one-line signature for completion detail. For a prototype (`Declaration`
  *  with a `FunctionDeclarator`) it's the whole declaration minus the trailing
  *  `;`; for a `FunctionDefinition` it's the text up to the body. Whitespace is
@@ -148,9 +158,15 @@ function signatureOf(decl: SyntaxNode, text: string): string {
     .trim()
 }
 
+/** The function name node from a `FunctionDeclarator`. */
+function fnNameNode(declarator: SyntaxNode): SyntaxNode | null {
+  return declarator.getChild('Identifier')
+}
+
 function collectSymbols(
   text: string,
   file: string,
+  uri: string,
   into: Map<string, CSymbol>,
   header?: string,
 ): void {
@@ -169,10 +185,11 @@ function collectSymbols(
     const id = n.getChild('Identifier')
     if (!id) return
     const label = slice(text, id)
+    const loc = locOf(uri, id)
     const arg = n.getChild('PreprocArg')
     const tag = arg ? REGISTER_CAST.exec(slice(text, arg))?.[1] : undefined
-    if (tag) add({ label, kind: 'global', type: tag, detail: `struct ${tag}`, file, ...hdr })
-    else add({ label, kind: 'macro', file, ...hdr })
+    if (tag) add({ label, kind: 'global', type: tag, detail: `struct ${tag}`, file, loc, ...hdr })
+    else add({ label, kind: 'macro', file, loc, ...hdr })
   })
 
   // Enum constants — completable identifiers (rendered as constants), tagged
@@ -191,6 +208,7 @@ function collectSymbols(
           label: slice(text, id),
           kind: 'macro',
           file,
+          loc: locOf(uri, id),
           ...(enumName ? { detail: `enum ${enumName}` } : {}),
           ...hdr,
         })
@@ -203,21 +221,40 @@ function collectSymbols(
   for (let n = root.firstChild; n; n = n.nextSibling) {
     if (n.name === 'FunctionDefinition') {
       const decl = n.getChild('FunctionDeclarator')
-      const name = decl ? fnName(decl, text) : null
-      if (name) add({ label: name, kind: 'function', file, detail: signatureOf(n, text), ...hdr })
+      const id = decl ? fnNameNode(decl) : null
+      if (id) {
+        add({
+          label: slice(text, id),
+          kind: 'function',
+          file,
+          detail: signatureOf(n, text),
+          loc: locOf(uri, id),
+          ...hdr,
+        })
+      }
       continue
     }
     if (n.name !== 'Declaration') continue
     const fnDecl = n.getChild('FunctionDeclarator')
     if (fnDecl) {
-      const name = fnName(fnDecl, text)
-      if (name) add({ label: name, kind: 'function', file, detail: signatureOf(n, text), ...hdr })
+      const id = fnNameNode(fnDecl)
+      if (id) {
+        add({
+          label: slice(text, id),
+          kind: 'function',
+          file,
+          detail: signatureOf(n, text),
+          loc: locOf(uri, id),
+          ...hdr,
+        })
+      }
       continue
     }
     // Every declarator of the declaration (`struct Foo a, b;` → a and b).
     const type = declTypeName(n, text)
-    for (const name of declaredNames(n, text)) {
-      add({ label: name, kind: 'global', file, ...(type ? { type } : {}), ...hdr })
+    for (const id of declaredIds(n, text)) {
+      const loc: CLocation = { uri, start: id.from, end: id.to }
+      add({ label: id.name, kind: 'global', file, loc, ...(type ? { type } : {}), ...hdr })
     }
   }
 }
@@ -228,13 +265,13 @@ export function indexC(files: SourceFile[], opts: IndexOptions = {}): CIndex {
   // auto-`#include`); project `.c`/`.h` symbols don't get one.
   for (const f of opts.sysrootHeaders ?? []) {
     const file = basename(f.path)
-    collectTypes(f.text, file, index.types, index.aliases)
-    collectSymbols(f.text, file, index.symbols, file)
+    collectTypes(f.text, file, f.path, index.types, index.aliases)
+    collectSymbols(f.text, file, f.path, index.symbols, file)
   }
   for (const f of files) {
     const file = basename(f.path)
-    collectTypes(f.text, file, index.types, index.aliases)
-    collectSymbols(f.text, file, index.symbols)
+    collectTypes(f.text, file, f.path, index.types, index.aliases)
+    collectSymbols(f.text, file, f.path, index.symbols)
   }
   return index
 }

@@ -95,6 +95,44 @@ async function hover(
 
 const CONIO = { sysrootHeaders: [{ path: 'include/conio.h', text: 'void cputs(const char* s);' }] }
 
+interface Location {
+  uri: string
+  range: { start: Position; end: Position }
+}
+
+// Opens one or more documents, then runs a go-to-definition at `position` in the
+// first one. Exercises the cross-document path the host uses.
+async function definition(
+  docs: { uri: string; text: string }[],
+  position: Position,
+  initializationOptions: unknown = {},
+): Promise<{ result: Location | Location[] | null; client: MessageConnection }> {
+  const c2s = new PassThrough()
+  const s2c = new PassThrough()
+  startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+  const client = createMessageConnection(new StreamMessageReader(s2c), new StreamMessageWriter(c2s))
+  client.listen()
+
+  await client.sendRequest('initialize', {
+    processId: null,
+    rootUri: null,
+    capabilities: {},
+    initializationOptions,
+  })
+  await client.sendNotification('initialized', {})
+  for (const d of docs) {
+    await client.sendNotification('textDocument/didOpen', {
+      textDocument: { uri: d.uri, languageId: 'c', version: 1, text: d.text },
+    })
+  }
+
+  const result = await client.sendRequest<Location | Location[] | null>('textDocument/definition', {
+    textDocument: { uri: docs[0]!.uri },
+    position,
+  })
+  return { result, client }
+}
+
 // Validates the client↔server contract (method names + param/response shapes)
 // end to end.
 describe('@cc65-intel/lsp protocol', () => {
@@ -150,6 +188,27 @@ describe('@cc65-intel/lsp protocol', () => {
     const text = 'int main(void) { return 0; }'
     const { result, client } = await hover(text, { line: 0, character: 22 })
     expect(result).toBeNull()
+    client.dispose()
+  })
+
+  it('serves cross-file go-to-definition between open documents', async () => {
+    const lib = { uri: 'file:///lib.c', text: 'int add(int a, int b) { return a + b; }' }
+    const main = { uri: 'file:///main.c', text: 'void f(void) {\n  add(1, 2);\n}' }
+    // cursor on `add` in main.c (line 1, char 2..5)
+    const { result, client } = await definition([main, lib], { line: 1, character: 3 })
+    const loc = Array.isArray(result) ? result[0] : result
+    expect(loc?.uri).toBe('file:///lib.c')
+    // `add` starts at offset 4 → line 0, char 4
+    expect(loc?.range.start).toEqual({ line: 0, character: 4 })
+    client.dispose()
+  })
+
+  it('serves go-to-definition into a sysroot header', async () => {
+    const main = { uri: 'file:///main.c', text: 'void f(void) {\n  cputs("hi");\n}' }
+    const { result, client } = await definition([main], { line: 1, character: 3 }, CONIO)
+    const loc = Array.isArray(result) ? result[0] : result
+    expect(loc?.uri).toBe('include/conio.h')
+    expect(loc?.range.start).toEqual({ line: 0, character: 5 })
     client.dispose()
   })
 })
