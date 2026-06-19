@@ -74,4 +74,15 @@ void f(void) { Ta| }`
     // 'Tank' (type) matches 'Ta'; 'tankCount' matches case-insensitively too
     expect(labels(completeAt(idx, text, offset))).toContain('Tank')
   })
+
+  it('carries the header + detail of a stdlib symbol through to the completion', () => {
+    const fixture = `void f(void) { cput| }`
+    const { text, offset } = at(fixture)
+    const idx = indexC([{ path: 'main.c', text }], {
+      sysrootHeaders: [{ path: 'include/conio.h', text: 'void cputs(const char* s);' }],
+    })
+    const cputs = completeAt(idx, text, offset).find((i) => i.label === 'cputs')
+    expect(cputs?.header).toBe('conio.h')
+    expect(cputs?.detail).toBe('void cputs(const char* s)')
+  })
 })

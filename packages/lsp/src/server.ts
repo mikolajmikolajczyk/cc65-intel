@@ -69,6 +69,9 @@ export function startServer(connection: Connection): void {
       label: item.label,
       kind: KIND[item.kind],
       detail: item.detail,
+      // The declaring header rides along in `data` for the client / the
+      // auto-`#include` resolver (issue #19) to turn into additionalTextEdits.
+      ...(item.header ? { data: { header: item.header } } : {}),
     }))
   })
 

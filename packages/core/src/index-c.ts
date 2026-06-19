@@ -80,8 +80,28 @@ function fnName(declarator: SyntaxNode, text: string): string | null {
   return id ? slice(text, id) : null
 }
 
-function collectSymbols(text: string, file: string, into: Map<string, CSymbol>): void {
+/** A one-line signature for completion detail. For a prototype (`Declaration`
+ *  with a `FunctionDeclarator`) it's the whole declaration minus the trailing
+ *  `;`; for a `FunctionDefinition` it's the text up to the body. Whitespace is
+ *  collapsed so it reads on one line. */
+function signatureOf(decl: SyntaxNode, text: string): string {
+  const body = decl.getChild('CompoundStatement')
+  const end = body ? body.from : decl.to
+  return text
+    .slice(decl.from, end)
+    .replace(/\s+/g, ' ')
+    .replace(/\s*;\s*$/, '')
+    .trim()
+}
+
+function collectSymbols(
+  text: string,
+  file: string,
+  into: Map<string, CSymbol>,
+  header?: string,
+): void {
   const root = parseC(text).topNode
+  const hdr = header ? { header } : {}
   const add = (s: CSymbol): void => {
     if (!into.has(s.label)) into.set(s.label, s)
   }
@@ -91,7 +111,7 @@ function collectSymbols(text: string, file: string, into: Map<string, CSymbol>):
     if (n.name !== 'PreprocDirective') return
     if (!n.getChild('#define')) return
     const id = n.getChild('Identifier')
-    if (id) add({ label: slice(text, id), kind: 'macro', file })
+    if (id) add({ label: slice(text, id), kind: 'macro', file, ...hdr })
   })
 
   // Top-level functions + globals (direct children of the program root only, so
@@ -100,28 +120,34 @@ function collectSymbols(text: string, file: string, into: Map<string, CSymbol>):
     if (n.name === 'FunctionDefinition') {
       const decl = n.getChild('FunctionDeclarator')
       const name = decl ? fnName(decl, text) : null
-      if (name) add({ label: name, kind: 'function', file })
+      if (name) add({ label: name, kind: 'function', file, detail: signatureOf(n, text), ...hdr })
       continue
     }
     if (n.name !== 'Declaration') continue
     const fnDecl = n.getChild('FunctionDeclarator')
     if (fnDecl) {
       const name = fnName(fnDecl, text)
-      if (name) add({ label: name, kind: 'function', file })
+      if (name) add({ label: name, kind: 'function', file, detail: signatureOf(n, text), ...hdr })
       continue
     }
     const name = declaredName(n, text)
     if (name) {
       const type = declTypeName(n, text)
-      add({ label: name, kind: 'global', file, ...(type ? { type } : {}) })
+      add({ label: name, kind: 'global', file, ...(type ? { type } : {}), ...hdr })
     }
   }
 }
 
 export function indexC(files: SourceFile[], opts: IndexOptions = {}): CIndex {
   const index: CIndex = { types: new Map(), symbols: new Map() }
-  const all = [...(opts.sysrootHeaders ?? []), ...files]
-  for (const f of all) {
+  // Sysroot headers carry their basename as the declaring header (drives editor
+  // auto-`#include`); project `.c`/`.h` symbols don't get one.
+  for (const f of opts.sysrootHeaders ?? []) {
+    const file = basename(f.path)
+    collectTypes(f.text, file, index.types)
+    collectSymbols(f.text, file, index.symbols, file)
+  }
+  for (const f of files) {
     const file = basename(f.path)
     collectTypes(f.text, file, index.types)
     collectSymbols(f.text, file, index.symbols)

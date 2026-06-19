@@ -48,7 +48,12 @@ function identifierCompletions(index: CIndex, prefix: string): CompletionItem[] 
   const out: CompletionItem[] = []
   for (const s of index.symbols.values()) {
     if (startsWith(s.label, prefix)) {
-      out.push({ label: s.label, kind: s.kind, ...(s.detail ? { detail: s.detail } : {}) })
+      out.push({
+        label: s.label,
+        kind: s.kind,
+        ...(s.detail ? { detail: s.detail } : {}),
+        ...(s.header ? { header: s.header } : {}),
+      })
     }
   }
   for (const t of index.types.values()) {
