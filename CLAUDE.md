@@ -11,8 +11,9 @@ Claude-specific entry point. Canonical content lives in [`AGENTS.md`](AGENTS.md)
 - **Boundary first:** before touching `packages/core`, re-read the purity rule
   in AGENTS.md — no editor/LSP/DOM imports. `pnpm lint` enforces it.
 - **Verify before done:** `just check` must be green (lint + types + madge +
-  build + test) before claiming a task complete.
+build + test) before claiming a task complete.
 <!-- repoctx:start -->
+
 ## Code navigation with `repoctx`
 
 Prefer `repoctx` over `grep`/`find`/wholesale `Read` for structural

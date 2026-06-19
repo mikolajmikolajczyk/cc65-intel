@@ -55,7 +55,7 @@ every item carries a `source` tag telling you how much to trust it:
   **Trust this.** Each structural item carries its own `callers` + `callees`.
 - `reference` — a call site of the queried name (from the call graph).
 - `textual` — substring matched but unconfirmed (comment, string, or a call
-  to a *different* symbol). Treat like grep.
+  to a _different_ symbol). Treat like grep.
 
 So you can separate confirmed symbols from noise, and see **who calls the
 symbol and what it calls** without a second query — the thing `rg` can't do.
@@ -174,7 +174,7 @@ The orientation layer — understand a repo's shape without reading it:
   god nodes (highest-degree hubs). "Where are the seams?"
 - `report` — a deterministic one-page markdown architecture report (god nodes,
   subsystems, cross-cluster bridges, entry points, suggested questions). `--out
-  REPORT.md` writes a file.
+REPORT.md` writes a file.
 - `export --out graph.html` — a self-contained interactive call-graph (no
   server/build): subsystems colored, edges styled by ambiguity.
 
@@ -216,12 +216,12 @@ Surface the navigation tokens this skill has actually saved. `gain top
 
 ## Output formats
 
-| Flag | Format |
-|---|---|
-| (none, TTY) | Human (aligned columns) |
+| Flag         | Format                         |
+| ------------ | ------------------------------ |
+| (none, TTY)  | Human (aligned columns)        |
 | (none, pipe) | TOON (token-efficient default) |
-| `--json` | JSON |
-| `--toon` | TOON forced on TTY |
+| `--json`     | JSON                           |
+| `--toon`     | TOON forced on TTY             |
 
 `--json` and `--toon` are mutually exclusive.
 
@@ -239,15 +239,15 @@ repoctx does **not** intercept your commands — you choose it. For any
 structural question, run the repoctx command instead of reaching for
 `rg`/`grep`/`find`/wholesale `Read`. Map your instinct to the command:
 
-| Instead of… | Run |
-|---|---|
-| `rg <ident>` / `grep -r <ident>` | `repoctx search <ident>` (symbol defs + every textual match, compressed) |
-| `rg "fn <name>"` / `class`/`struct`/`def` | `repoctx definition <name>` |
-| `rg -A/-B/-C <n> <ident>` (context) | `repoctx context <ident> --context <n>` |
-| `rg "<name>\("` (call sites) | `repoctx callers <name>` (and `callees` / `callgraph`) |
-| `rg "import .*<mod>"` | `repoctx rdeps <mod>` (or `deps <file>`) |
-| `find -name '*.x'` / `ls -R` to learn layout | `repoctx overview` / `repoctx report` |
-| reading many files to grasp structure | `repoctx communities` / `repoctx export --out graph.html` |
+| Instead of…                                  | Run                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| `rg <ident>` / `grep -r <ident>`             | `repoctx search <ident>` (symbol defs + every textual match, compressed) |
+| `rg "fn <name>"` / `class`/`struct`/`def`    | `repoctx definition <name>`                                              |
+| `rg -A/-B/-C <n> <ident>` (context)          | `repoctx context <ident> --context <n>`                                  |
+| `rg "<name>\("` (call sites)                 | `repoctx callers <name>` (and `callees` / `callgraph`)                   |
+| `rg "import .*<mod>"`                        | `repoctx rdeps <mod>` (or `deps <file>`)                                 |
+| `find -name '*.x'` / `ls -R` to learn layout | `repoctx overview` / `repoctx report`                                    |
+| reading many files to grasp structure        | `repoctx communities` / `repoctx export --out graph.html`                |
 
 Only fall back to `rg`/`Read` when (a) the language is `partial` coverage
 (see the advisory + `languages`), or (b) you need prose-level reasoning
