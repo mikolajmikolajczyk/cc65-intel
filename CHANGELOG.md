@@ -1,3 +1,9 @@
+## [0.3.0] - 2026-06-19
+
+### 🚀 Features
+
+- *(core)* Resolve cc65 register-struct macros (VIC/SID/CIA)
+- *(core)* Resolver accuracy — chains, typedef-ptr, arrays, enums
 ## [0.2.1] - 2026-06-19
 
 ### 🐛 Bug Fixes
