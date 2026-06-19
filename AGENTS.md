@@ -16,6 +16,25 @@ cc65-aware resolver.
 First consumer + proving ground: the [madside](https://github.com/mikolajmikolajczyk/madside)
 in-browser IDE. Designed to also run as a node LSP (VS Code / Neovim).
 
+## Agent guide (read these for your task)
+
+The `wiki/agents/` docs are sized to be read one at a time. **Pick the one that
+matches your task** — don't read them all up front.
+
+| Your task                                     | Read                                                                                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Get oriented                                  | [wiki/agents/architecture.md](wiki/agents/architecture.md)                                                                               |
+| **Anything user-facing** (completion/hover/…) | [wiki/agents/madside-contract.md](wiki/agents/madside-contract.md) — the spec for what madside needs + what shape to return. **Always.** |
+| Add a feature                                 | [wiki/agents/adding-features.md](wiki/agents/adding-features.md)                                                                         |
+| LSP capabilities / transports                 | [wiki/agents/lsp.md](wiki/agents/lsp.md)                                                                                                 |
+| Write tests                                   | [wiki/agents/testing.md](wiki/agents/testing.md)                                                                                         |
+| Code style / tooling / gotchas                | [wiki/agents/conventions.md](wiki/agents/conventions.md)                                                                                 |
+| Pick up / hand off an issue                   | [wiki/agents/working-on-issues.md](wiki/agents/working-on-issues.md)                                                                     |
+| What works today                              | [wiki/agents/status.md](wiki/agents/status.md)                                                                                           |
+
+The roadmap is GitHub issues (`gh issue list`) — each is self-contained
+(context, scope, steps, acceptance, tests, madside-compat, deps).
+
 ## Architecture (the core rule)
 
 ```
@@ -66,6 +85,22 @@ just release X.Y.Z
 
 ## Hard rules
 
+- **Never break the core purity boundary** — no editor/LSP/DOM/Node deps in
+  `@cc65-intel/core`. `pnpm lint` enforces it; if it seems necessary, the design
+  is wrong.
 - Don't add a dependency to `core` beyond pure parsing/data libs.
-- Don't commit without explicit request.
-- Don't pre-empt later milestones — match the issue's scope.
+- **Stay in the issue's scope** — one capability per issue, no unrelated
+  refactors, don't pre-empt other milestones.
+- **`just check` must be green** before you call an issue done (lint + format +
+  types + madge + build + test).
+- **Standard LSP only** — no madside-specific RPC. Browser-worker transport must
+  always work (no node-only APIs on the request path).
+- Every user-facing LSP capability ships with a protocol-roundtrip test.
+
+## Agent autonomy
+
+Unlike a typical "ask before committing" repo, this one is set up for agents to
+**own an issue end-to-end**: implement (engine → LSP → tests), get `just check`
+green, **commit** (Conventional Commits, signed, `Closes #<n>`), straight to
+`main`. Cut a release (`just release X.Y.Z`) when madside needs the change. Leave
+an issue comment if you pause mid-task. Never add a `Co-Authored-By` trailer.
