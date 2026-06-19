@@ -13,5 +13,5 @@
       "@cc65-intel/lsp": ["./packages/lsp/src/index.ts"]
     }
   },
-  "include": ["packages/*/src", "packages/*/test"]
+  "include": ["packages/*/src", "packages/*/test", "*.config.ts"]
 }
