@@ -38,6 +38,7 @@ export default tseslint.config(
       'boundaries/elements': [
         { type: 'core', pattern: 'packages/core/*', mode: 'folder' },
         { type: 'lsp', pattern: 'packages/lsp/*', mode: 'folder' },
+        { type: 'vscode-ext', pattern: 'packages/vscode/*', mode: 'folder' },
       ],
       'import/resolver': {
         typescript: { project: ['packages/*/tsconfig.json'] },
@@ -52,6 +53,7 @@ export default tseslint.config(
           rules: [
             { from: ['core'], allow: ['core'] },
             { from: ['lsp'], allow: ['core', 'lsp'] },
+            { from: ['vscode-ext'], allow: ['core', 'lsp', 'vscode-ext'] },
           ],
         },
       ],

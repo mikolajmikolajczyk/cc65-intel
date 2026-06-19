@@ -30,6 +30,9 @@ Snapshot of what works. Update when behaviour changes.
     open docs; cross-file `WorkspaceEdit`), `semanticTokensProvider` (full).
   - **node stdio transport** (#7): `cc65-lsp --stdio` bin + `@cc65-intel/lsp/node`,
     sharing `startServer` with the worker (Neovim / VS Code / any LSP client).
+  - **VS Code extension** (#8): `@cc65-intel/vscode` launches the stdio server via
+    `vscode-languageclient`; reads the sysroot from the `cc65.sysrootDir` setting.
+    Runs from source (not yet Marketplace-published).
   - **Quality**: a fixtures-based completion-quality harness (#4) guards the
     resolver against silent regressions (`packages/core/test/fixtures/*.c`).
 - **Consumed by madside** in its C editor behind `VITE_MADSIDE_CC65_LSP=1`.
@@ -56,7 +59,8 @@ Documented misses (lezer/dialect limits, tracked for later):
 
 ## Not yet (open issues)
 
-- **Ecosystem**: VS Code extension (#8) — packages the `cc65-lsp` stdio server.
+- **Marketplace**: publish the VS Code extension (#8 shipped from source; packaging
+  is the remaining stretch).
 - **Resolver accuracy**: the documented misses above (call-result types, casts,
   type-producing macros, …).
 

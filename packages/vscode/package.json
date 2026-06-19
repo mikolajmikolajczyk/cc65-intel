@@ -1,0 +1,41 @@
+{
+  "name": "@cc65-intel/vscode",
+  "version": "0.5.0",
+  "private": true,
+  "description": "VS Code extension launching the cc65-intel LSP (node stdio) for cc65 C projects.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/extension.js",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:c"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "cc65-intel",
+      "properties": {
+        "cc65.sysrootDir": {
+          "type": "string",
+          "default": "",
+          "description": "Directory of cc65 sysroot headers (*.h) to index for stdlib + register completion (e.g. the cc65 include/ dir)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@cc65-intel/lsp": "workspace:*",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.94.0"
+  }
+}

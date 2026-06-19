@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "./packages/core" }, { "path": "./packages/lsp" }]
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/lsp" },
+    { "path": "./packages/vscode" }
+  ]
 }
