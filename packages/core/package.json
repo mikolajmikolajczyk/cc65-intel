@@ -3,6 +3,11 @@
   "version": "0.2.0",
   "description": "cc65-dialect C intelligence engine: parse + resolve + complete/hover. Pure data in/out — no editor, no LSP, no DOM.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikolajmikolajczyk/cc65-intel.git",
+    "directory": "packages/core"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
