@@ -30,7 +30,7 @@ host supplies a connection.
 | `definitionProvider`     | **done** | cross-file + into sysroot headers |
 | `signatureHelpProvider`  | **done** | trigger `(` `,`; active param     |
 | `documentSymbolProvider` | **done** | top-level outline + ranges        |
-| `referencesProvider`     | TODO     |                                   |
+| `referencesProvider`     | **done** | name-based, across open docs      |
 | `renameProvider`         | TODO     |                                   |
 | `semanticTokensProvider` | TODO     |                                   |
 

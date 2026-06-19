@@ -295,6 +295,47 @@ describe('@cc65-intel/lsp protocol', () => {
     client.dispose()
   })
 
+  it('serves find-references across open documents over LSP', async () => {
+    const lib = { uri: 'file:///lib.c', text: 'int counter;\nvoid bump(void) { counter++; }' }
+    const main = {
+      uri: 'file:///main.c',
+      text: 'extern int counter;\nint get(void){return counter;}',
+    }
+    const c2s = new PassThrough()
+    const s2c = new PassThrough()
+    startServer(createConnection(new StreamMessageReader(c2s), new StreamMessageWriter(s2c)))
+    const client = createMessageConnection(
+      new StreamMessageReader(s2c),
+      new StreamMessageWriter(c2s),
+    )
+    client.listen()
+    await client.sendRequest('initialize', {
+      processId: null,
+      rootUri: null,
+      capabilities: {},
+      initializationOptions: {},
+    })
+    await client.sendNotification('initialized', {})
+    for (const d of [lib, main]) {
+      await client.sendNotification('textDocument/didOpen', {
+        textDocument: { uri: d.uri, languageId: 'c', version: 1, text: d.text },
+      })
+    }
+    // cursor on `counter` in lib.c line 0
+    const res = await client.sendRequest<Location[]>('textDocument/references', {
+      textDocument: { uri: lib.uri },
+      position: { line: 0, character: 5 },
+      context: { includeDeclaration: true },
+    })
+    expect(res.map((l) => l.uri).sort()).toEqual([
+      'file:///lib.c',
+      'file:///lib.c',
+      'file:///main.c',
+      'file:///main.c',
+    ])
+    client.dispose()
+  })
+
   it('serves document symbols (file outline) over LSP', async () => {
     const text = 'struct Foo { int x; };\nint score;\nvoid run(void) {\n  int local;\n}'
     const c2s = new PassThrough()

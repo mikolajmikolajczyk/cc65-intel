@@ -17,11 +17,13 @@ import {
   hoverAt,
   indexC,
   parseBuildOutput,
+  referencesAt,
   signatureHelpAt,
   type CDiagnostic,
   type CDiagnosticSeverity,
   type CDocSymbolKind,
   type CIndex,
+  type CLocation,
   type CSymbolKind,
   type SourceFile,
 } from '@cc65-intel/core'
@@ -96,10 +98,24 @@ export function startServer(connection: Connection): void {
 
   // cc65 projects are small — a full reindex on every change is cheap and keeps
   // cross-file types fresh. (Incremental reindex is a later optimisation.)
+  const allFiles = (): SourceFile[] =>
+    documents.all().map((d) => ({ path: d.uri, text: d.getText() }))
+
   const reindex = (): void => {
-    const files: SourceFile[] = documents.all().map((d) => ({ path: d.uri, text: d.getText() }))
-    index = indexC(files, { sysrootHeaders })
+    index = indexC(allFiles(), { sysrootHeaders })
   }
+
+  // An engine offset range → an LSP Location against its (open) document.
+  const toLocation = (
+    loc: CLocation,
+  ): { uri: string; range: ReturnType<typeof rangeOf> } | null => {
+    const target = documents.get(loc.uri)
+    return target ? { uri: loc.uri, range: rangeOf(target, loc.start, loc.end) } : null
+  }
+  const rangeOf = (doc: TextDocument, start: number, end: number) => ({
+    start: doc.positionAt(start),
+    end: doc.positionAt(end),
+  })
 
   connection.onInitialize((params): InitializeResult => {
     const opts = params.initializationOptions as InitOptions | undefined
@@ -114,6 +130,7 @@ export function startServer(connection: Connection): void {
         definitionProvider: true,
         signatureHelpProvider: { triggerCharacters: ['(', ','] },
         documentSymbolProvider: true,
+        referencesProvider: true,
       },
     }
   })
@@ -155,6 +172,22 @@ export function startServer(connection: Connection): void {
       activeSignature: 0,
       activeParameter: help.activeParameter,
     }
+  })
+
+  connection.onReferences((params) => {
+    const doc = documents.get(params.textDocument.uri)
+    if (!doc) return []
+    const offset = doc.offsetAt(params.position)
+    let refs = referencesAt(allFiles(), doc.getText(), offset)
+    if (!params.context.includeDeclaration) {
+      const def = definitionAt(index, doc.getText(), offset)
+      if (def) {
+        refs = refs.filter(
+          (r) => !(r.uri === def.uri && r.start === def.start && r.end === def.end),
+        )
+      }
+    }
+    return refs.map(toLocation).filter((l): l is NonNullable<typeof l> => l !== null)
   })
 
   connection.onDocumentSymbol((params) => {
