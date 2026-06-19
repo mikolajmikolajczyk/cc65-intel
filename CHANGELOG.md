@@ -1,3 +1,21 @@
+## [0.6.0] - 2026-06-19
+
+### 🚀 Features
+
+- *(lsp)* Node stdio transport + cc65-lsp bin
+- *(core,lsp)* Signature help with active parameter
+- *(core,lsp)* Document symbols (file outline)
+- *(core,lsp)* Find references across open documents
+- *(core,lsp)* Rename symbol + semantic tokens
+- *(vscode)* VS Code extension launching the stdio LSP
+
+### 📚 Documentation
+
+- Update status — M5 features, node stdio, harness shipped
+
+### 🧪 Testing
+
+- *(core)* Completion-quality harness over cc65 fixtures
 ## [0.5.0] - 2026-06-19
 
 ### 🚀 Features
