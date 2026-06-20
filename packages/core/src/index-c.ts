@@ -8,6 +8,7 @@ import type {
   IndexOptions,
   SourceFile,
 } from './types.js'
+import { preprocess } from './preprocess.js'
 import { parseC, stripDecorators } from './parse.js'
 import { declTypeName, declaredIds, deepChild, slice, walk } from './ast.js'
 
@@ -284,17 +285,59 @@ function collectSymbols(
 
 export function indexC(files: SourceFile[], opts: IndexOptions = {}): CIndex {
   const index: CIndex = { types: new Map(), symbols: new Map(), aliases: new Map() }
-  // Sysroot headers carry their basename as the declaring header (drives editor
-  // auto-`#include`); project `.c`/`.h` symbols don't get one.
-  for (const f of opts.sysrootHeaders ?? []) {
-    const file = basename(f.path)
-    collectTypes(f.text, file, f.path, index.types, index.aliases)
-    collectSymbols(f.text, file, f.path, index.symbols, file)
+  const sysroot = opts.sysrootHeaders ?? []
+
+  // Legacy path (#30): no target defines → index every sysroot header flat, no
+  // preprocessor. Kept for back-compat with hosts that don't pass `defines`.
+  if (opts.defines === undefined) {
+    // Sysroot headers carry their basename as the declaring header (drives the
+    // editor's auto-`#include`); project `.c`/`.h` symbols don't get one.
+    for (const f of sysroot) {
+      const file = basename(f.path)
+      collectTypes(f.text, file, f.path, index.types, index.aliases)
+      collectSymbols(f.text, file, f.path, index.symbols, file)
+    }
+    for (const f of files) {
+      const file = basename(f.path)
+      collectTypes(f.text, file, f.path, index.types, index.aliases)
+      collectSymbols(f.text, file, f.path, index.symbols)
+    }
+    return index
   }
-  for (const f of files) {
-    const file = basename(f.path)
-    collectTypes(f.text, file, f.path, index.types, index.aliases)
-    collectSymbols(f.text, file, f.path, index.symbols)
+
+  // Preprocessor-aware path (#30): evaluate `#if defined(...)` so the per-target
+  // `<target.h>` gating resolves, and drop headers reachable only through
+  // inactive conditional `#include`s (other targets' platform headers, e.g.
+  // agat.h on a C64 build). Generic headers + the active target's headers stay,
+  // so completion + auto-`#include` keep working without the cross-target noise.
+  const defines = opts.defines
+  const ppSys = sysroot.map((h) => ({ src: h, pp: preprocess(h.text, defines) }))
+  const ppProj = files.map((f) => ({ src: f, pp: preprocess(f.text, defines) }))
+
+  // Tally each included header's active vs inactive inclusions; a header that is
+  // *only* inactive-included belongs to another target.
+  const activeInc = new Map<string, number>()
+  const inactiveInc = new Map<string, number>()
+  for (const { pp } of [...ppSys, ...ppProj]) {
+    for (const inc of pp.includes) {
+      const name = basename(inc.name)
+      const m = inc.active ? activeInc : inactiveInc
+      m.set(name, (m.get(name) ?? 0) + 1)
+    }
+  }
+  const isExcluded = (name: string): boolean =>
+    (inactiveInc.get(name) ?? 0) >= 1 && (activeInc.get(name) ?? 0) === 0
+
+  for (const { src, pp } of ppSys) {
+    const file = basename(src.path)
+    if (isExcluded(file)) continue
+    collectTypes(pp.stripped, file, src.path, index.types, index.aliases)
+    collectSymbols(pp.stripped, file, src.path, index.symbols, file)
+  }
+  for (const { src, pp } of ppProj) {
+    const file = basename(src.path)
+    collectTypes(pp.stripped, file, src.path, index.types, index.aliases)
+    collectSymbols(pp.stripped, file, src.path, index.symbols)
   }
   return index
 }

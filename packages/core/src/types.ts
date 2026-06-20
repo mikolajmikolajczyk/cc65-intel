@@ -149,8 +149,18 @@ export interface CDiagnostic {
   message: string
 }
 
+/** Predefined macros (name → value) for preprocessor-aware indexing (#30). */
+export type Defines = Record<string, string>
+
 export interface IndexOptions {
   /** cc65 sysroot headers (e.g. `<_vic2.h>`) so register structs (VIC/SID/CIA)
    *  resolve. Indexed read-only alongside the project files. */
   sysrootHeaders?: SourceFile[]
+  /** Predefined macros for the active cc65 target (e.g. `{ __C64__: '1',
+   *  __CBM__: '1' }`). When present, the indexer becomes preprocessor-aware:
+   *  it evaluates `#if defined(...)` so the per-target `<target.h>` gating
+   *  resolves, and drops headers reachable only through inactive conditional
+   *  `#include`s (other targets' platform headers). Absent ⇒ legacy behaviour
+   *  (index every sysroot header flat, no preprocessor) for back-compat (#30). */
+  defines?: Defines
 }

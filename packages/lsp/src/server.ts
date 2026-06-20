@@ -51,6 +51,10 @@ interface InitOptions {
   /** cc65 sysroot headers (e.g. <_vic2.h>) the host mounts, so register structs
    *  resolve. Sent once at initialize. */
   sysrootHeaders?: SourceFile[]
+  /** Predefined macros for the active cc65 target (e.g. `{ __C64__: '1' }`).
+   *  When present the indexer becomes preprocessor-aware and drops other
+   *  targets' headers (#30). */
+  defines?: Record<string, string>
 }
 
 /** Custom notification: the host pushes raw cc65/ca65/ld65 build output, the
@@ -117,6 +121,7 @@ function includeInsert(text: string, header: string): { offset: number; newText:
 export function startServer(connection: Connection): void {
   const documents = new TextDocuments(TextDocument)
   let sysrootHeaders: SourceFile[] = []
+  let defines: Record<string, string> | undefined
   let index: CIndex = indexC([])
 
   // cc65 projects are small — a full reindex on every change is cheap and keeps
@@ -125,7 +130,7 @@ export function startServer(connection: Connection): void {
     documents.all().map((d) => ({ path: d.uri, text: d.getText() }))
 
   const reindex = (): void => {
-    index = indexC(allFiles(), { sysrootHeaders })
+    index = indexC(allFiles(), { sysrootHeaders, defines })
   }
 
   // An engine offset range → an LSP Location against its (open) document.
@@ -206,6 +211,7 @@ export function startServer(connection: Connection): void {
   connection.onInitialize((params): InitializeResult => {
     const opts = params.initializationOptions as InitOptions | undefined
     if (opts?.sysrootHeaders) sysrootHeaders = opts.sysrootHeaders
+    if (opts?.defines) defines = opts.defines
     return {
       capabilities: {
         // Full document sync — small cc65 files, simplest client. The host
