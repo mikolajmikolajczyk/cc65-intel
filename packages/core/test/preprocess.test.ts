@@ -60,10 +60,16 @@ describe('indexC — preprocessor-aware target gating (#30)', () => {
     { path: 'include/conio.h', text: '#include <target.h>\nvoid clrscr(void);' },
     {
       path: 'include/target.h',
-      text: '#if defined(__AGAT__)\n#include <agat.h>\n#elif defined(__CBM__)\n#include <cbm.h>\n#endif',
+      text: '#if defined(__APPLE2__)\n#include <apple2.h>\n#elif defined(__AGAT__)\n#include <agat.h>\n#elif defined(__CBM__)\n#include <cbm.h>\n#endif',
     },
     { path: 'include/cbm.h', text: '#if defined(__C64__)\n#include <c64.h>\n#endif' },
-    { path: 'include/agat.h', text: '#define COLOR_GREEN 0x42\nstruct agat_io { int x; };' },
+    // agat.h (Apple II clone) unconditionally pulls apple2.h — apple2.h must
+    // still be excluded, since agat.h itself is unreachable on a C64 build.
+    {
+      path: 'include/agat.h',
+      text: '#include <apple2.h>\n#define COLOR_GREEN 0x42\nstruct agat_io { int x; };',
+    },
+    { path: 'include/apple2.h', text: '#define COLOR_WHITE 0x0f\nstruct apple2_io { int y; };' },
     {
       path: 'include/c64.h',
       text: '#define COLOR_GREEN 0x05\nstruct __vic2 { unsigned char bordercolor; };',
@@ -78,6 +84,9 @@ describe('indexC — preprocessor-aware target gating (#30)', () => {
     expect(idx.symbols.has('clrscr')).toBe(true)
     // agat.h is only inactive-included → excluded (no cross-target pollution)
     expect(idx.types.has('agat_io')).toBe(false)
+    // apple2.h is reachable ONLY through the excluded agat.h → also excluded
+    expect(idx.types.has('apple2_io')).toBe(false)
+    expect(idx.symbols.has('COLOR_WHITE')).toBe(false)
     // COLOR_GREEN resolves to the c64 value, not the agat one
     expect(idx.symbols.get('COLOR_GREEN')?.file).toBe('c64.h')
   })

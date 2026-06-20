@@ -8,7 +8,7 @@ import type {
   IndexOptions,
   SourceFile,
 } from './types.js'
-import { preprocess } from './preprocess.js'
+import { preprocess, type PreprocessResult } from './preprocess.js'
 import { parseC, stripDecorators } from './parse.js'
 import { declTypeName, declaredIds, deepChild, slice, walk } from './ast.js'
 
@@ -311,28 +311,49 @@ export function indexC(files: SourceFile[], opts: IndexOptions = {}): CIndex {
   // agat.h on a C64 build). Generic headers + the active target's headers stay,
   // so completion + auto-`#include` keep working without the cross-target noise.
   const defines = opts.defines
-  const ppSys = sysroot.map((h) => ({ src: h, pp: preprocess(h.text, defines) }))
+  const byName = new Map<string, { src: SourceFile; pp: PreprocessResult }>()
+  for (const h of sysroot) byName.set(basename(h.path), { src: h, pp: preprocess(h.text, defines) })
   const ppProj = files.map((f) => ({ src: f, pp: preprocess(f.text, defines) }))
 
-  // Tally each included header's active vs inactive inclusions; a header that is
-  // *only* inactive-included belongs to another target.
-  const activeInc = new Map<string, number>()
-  const inactiveInc = new Map<string, number>()
-  for (const { pp } of [...ppSys, ...ppProj]) {
-    for (const inc of pp.includes) {
-      const name = basename(inc.name)
-      const m = inc.active ? activeInc : inactiveInc
-      m.set(name, (m.get(name) ?? 0) + 1)
+  // A header included anywhere through an *inactive* conditional `#include` is a
+  // candidate other-target header (e.g. agat.h / apple2.h on a C64 build). It
+  // is kept only if some *reachable* header reaches it through an active include
+  // — hence a reachability walk, not a flat tally: an excluded header's own
+  // includes (agat.h unconditionally pulls apple2.h) must not rescue it.
+  const inactiveSet = new Set<string>()
+  for (const { pp } of [...byName.values(), ...ppProj]) {
+    for (const inc of pp.includes) if (!inc.active) inactiveSet.add(basename(inc.name))
+  }
+
+  // Reach = project files + every sysroot header NOT gated out by an inactive
+  // conditional, then follow active `#include`s. Other-target headers (in
+  // inactiveSet, not actively reached) fall out; generic + active-target headers
+  // stay, so completion + auto-`#include` keep working.
+  const reached = new Set<string>()
+  const queue: PreprocessResult[] = ppProj.map((e) => e.pp)
+  for (const [name, e] of byName) {
+    if (!inactiveSet.has(name)) {
+      reached.add(name)
+      queue.push(e.pp)
     }
   }
-  const isExcluded = (name: string): boolean =>
-    (inactiveInc.get(name) ?? 0) >= 1 && (activeInc.get(name) ?? 0) === 0
+  // for-of over a growing array keeps visiting appended entries → a BFS.
+  for (const pp of queue) {
+    for (const inc of pp.includes) {
+      if (!inc.active) continue
+      const name = basename(inc.name)
+      if (reached.has(name)) continue
+      const target = byName.get(name)
+      if (!target) continue
+      reached.add(name)
+      queue.push(target.pp)
+    }
+  }
 
-  for (const { src, pp } of ppSys) {
-    const file = basename(src.path)
-    if (isExcluded(file)) continue
-    collectTypes(pp.stripped, file, src.path, index.types, index.aliases)
-    collectSymbols(pp.stripped, file, src.path, index.symbols, file)
+  for (const [name, e] of byName) {
+    if (!reached.has(name)) continue
+    collectTypes(e.pp.stripped, name, e.src.path, index.types, index.aliases)
+    collectSymbols(e.pp.stripped, name, e.src.path, index.symbols, name)
   }
   for (const { src, pp } of ppProj) {
     const file = basename(src.path)
