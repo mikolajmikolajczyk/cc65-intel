@@ -1,3 +1,8 @@
+## [0.8.1] - 2026-06-20
+
+### 🐛 Bug Fixes
+
+- *(core)* Exclude cross-target headers by reachability, not a flat tally (#30)
 ## [0.8.0] - 2026-06-20
 
 ### 🚀 Features
