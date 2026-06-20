@@ -1,3 +1,8 @@
+## [0.8.0] - 2026-06-20
+
+### 🚀 Features
+
+- *(core,lsp)* Preprocessor-aware indexing via target defines (#30)
 ## [0.7.0] - 2026-06-19
 
 ### 🚀 Features
